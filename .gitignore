@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node
+node_modules/
+.next/
+dist/
+.expo/
+
+# Docker
+*.log
+
+# IA / datasets
+ai/datasets/raw/*
+ai/datasets/annotated/*
+ai/models/*.pt
+ai/models/*.onnx
+!ai/models/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
