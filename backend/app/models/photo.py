@@ -25,6 +25,7 @@ class Photo(Base):
     captured_at = Column(DateTime(timezone=True), nullable=True)
     source = Column(String(50), default="drone", nullable=False)
     uploaded_by = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     mission = relationship("Mission", back_populates="photos")
     detections = relationship("Detection", back_populates="photo", cascade="all, delete-orphan")
