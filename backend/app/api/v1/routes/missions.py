@@ -1,8 +1,11 @@
 import json
+import uuid
+from pathlib import Path
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from geoalchemy2 import WKTElement
 from geoalchemy2.functions import ST_AsGeoJSON, ST_X, ST_Y
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.models import Mission, Photo
 from app.schemas.mission import MissionCreate, MissionRead, MissionUpdate
+from app.services.exif_service import extract_gps
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff"}
+MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 """
@@ -23,6 +30,9 @@ get_mission_geojson endpoint retrieves all photos associated with a specific mis
 missions are a core entity in the application, representing a drone surveillance operation that can have multiple photos associated with it. The API routes defined in this module provide the necessary functionality to manage missions and their related photos effectively.
 routes are designed to follow RESTful principles, making it easy for clients to interact with the API and perform CRUD operations on missions and their associated photos. The use of async database sessions ensures that the API can handle concurrent requests efficiently, providing a responsive experience for users.
 validation and error handling are implemented to ensure that clients receive appropriate responses when interacting with the API, such as returning a 404 status code when a mission or photo is not found. This helps maintain the integrity of the application and provides clear feedback to clients.
+mission management is a critical aspect of the JACIGREEN DroneSurveillance application, and the API routes defined in this module provide a comprehensive set of tools for managing missions and their associated photos. By leveraging FastAPI, SQLAlchemy, and GeoAlchemy2, the application can efficiently handle spatial data and provide a robust platform for drone surveillance operations.
+postgis and spatial data support are integral to the application's functionality, allowing for advanced geospatial queries and analysis. The use of GeoAlchemy2 enables seamless integration with PostGIS, providing powerful spatial capabilities for managing and analyzing geographic data related to missions and photos.
+yolov8 and object detection integration can be implemented in the future to enhance the capabilities of the JACIGREEN DroneSurveillance application. By leveraging YOLOv8 for real-time object detection, the application can automatically identify and classify objects in drone-captured images, providing valuable insights for surveillance and monitoring purposes. This integration can further enhance the application's functionality and provide users with advanced tools for analyzing and interpreting spatial data collected during drone missions.
 """
 router = APIRouter(prefix="/missions", tags=["missions"])
 
@@ -73,6 +83,65 @@ async def delete_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
     await db.delete(mission)
     await db.commit()
+
+
+@router.post("/{mission_id}/photos", status_code=status.HTTP_201_CREATED)
+async def upload_mission_photos(
+    mission_id: UUID,
+    files: list[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Mission).where(Mission.id == mission_id))
+    mission = result.scalar_one_or_none()
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+
+    uploaded = []
+    errors = []
+    storage_dir = Path("./storage/photos")
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    for file in files:
+        if file.content_type not in ALLOWED_TYPES:
+            errors.append({"file": file.filename, "error": "Format non supporté (JPEG/PNG/TIFF)"})
+            continue
+
+        content = await file.read()
+        if len(content) > MAX_SIZE_BYTES:
+            errors.append({"file": file.filename, "error": "Fichier trop lourd (max 20MB)"})
+            continue
+
+        try:
+            gps = extract_gps(content)
+        except ValueError as exc:
+            errors.append({"file": file.filename, "error": str(exc)})
+            continue
+
+        safe_filename = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
+        target_path = storage_dir / safe_filename
+        target_path.write_bytes(content)
+        storage_url = f"/storage/photos/{safe_filename}"
+
+        location = WKTElement(f"POINT({gps.longitude} {gps.latitude})", srid=4326)
+
+        photo = Photo(
+            mission_id=mission_id,
+            filename=file.filename,
+            storage_url=storage_url,
+            location=location,
+            altitude_m=gps.altitude,
+            captured_at=gps.captured_at,
+        )
+        db.add(photo)
+        uploaded.append({"file": file.filename, "storage_url": storage_url})
+
+    await db.commit()
+
+    return {
+        "uploaded": uploaded,
+        "errors": errors,
+        "mission_id": str(mission_id),
+    }
 
 
 @router.get("/{mission_id}/geojson")
