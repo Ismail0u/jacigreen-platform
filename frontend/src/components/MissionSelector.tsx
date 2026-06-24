@@ -17,9 +17,10 @@ interface MissionOption {
 interface Props {
   value: string
   onChange: (id: string) => void
+  refreshKey?: number
 }
 
-export function MissionSelector({ value, onChange }: Props) {
+export function MissionSelector({ value, onChange, refreshKey = 0 }: Props) {
   const [missions, setMissions] = useState<MissionOption[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -39,7 +40,7 @@ export function MissionSelector({ value, onChange }: Props) {
     }
 
     void loadMissions()
-  }, [])
+  }, [refreshKey])
 
   return (
     <label className="mission-selector">
