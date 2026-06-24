@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 """
 Mission schema models for request and response validation.
@@ -41,6 +41,4 @@ class MissionRead(MissionBase):
     id: UUID
     created_at: datetime
     completed_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.models import Mission, Photo
 from app.schemas.mission import MissionCreate, MissionRead, MissionUpdate
+from app.services.detection_geojson import mission_detections_geojson
 from app.services.exif_service import extract_gps
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff"}
@@ -33,6 +34,7 @@ validation and error handling are implemented to ensure that clients receive app
 mission management is a critical aspect of the JACIGREEN DroneSurveillance application, and the API routes defined in this module provide a comprehensive set of tools for managing missions and their associated photos. By leveraging FastAPI, SQLAlchemy, and GeoAlchemy2, the application can efficiently handle spatial data and provide a robust platform for drone surveillance operations.
 postgis and spatial data support are integral to the application's functionality, allowing for advanced geospatial queries and analysis. The use of GeoAlchemy2 enables seamless integration with PostGIS, providing powerful spatial capabilities for managing and analyzing geographic data related to missions and photos.
 yolov8 and object detection integration can be implemented in the future to enhance the capabilities of the JACIGREEN DroneSurveillance application. By leveraging YOLOv8 for real-time object detection, the application can automatically identify and classify objects in drone-captured images, providing valuable insights for surveillance and monitoring purposes. This integration can further enhance the application's functionality and provide users with advanced tools for analyzing and interpreting spatial data collected during drone missions.
+routes are designed to be modular and extensible, allowing for easy addition of new features and functionality as the application evolves. This modularity ensures that the application can adapt to changing requirements and incorporate new technologies and methodologies as they become available.
 """
 router = APIRouter(prefix="/missions", tags=["missions"])
 
@@ -54,7 +56,7 @@ async def get_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=MissionRead, status_code=status.HTTP_201_CREATED)
 async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_db)):
-    mission = Mission(**payload.dict())
+    mission = Mission(**payload.model_dump())
     db.add(mission)
     await db.commit()
     await db.refresh(mission)
@@ -67,7 +69,7 @@ async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSess
     mission = result.scalar_one_or_none()
     if mission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(mission, field, value)
     db.add(mission)
     await db.commit()
@@ -98,7 +100,7 @@ async def upload_mission_photos(
 
     uploaded = []
     errors = []
-    storage_dir = Path("./storage/photos")
+    storage_dir = Path(__file__).resolve().parents[4] / "storage" / "photos"
     storage_dir.mkdir(parents=True, exist_ok=True)
 
     for file in files:
@@ -186,13 +188,18 @@ async def get_mission_geojson(mission_id: UUID, db: AsyncSession = Depends(get_d
 
 @router.get("/{mission_id}/flightpath")
 async def get_mission_flightpath(mission_id: UUID, db: AsyncSession = Depends(get_db)):
+    mission = await db.get(Mission, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+
+    if mission.flight_path is None:
+        return {"type": "FeatureCollection", "features": []}
+
     result = await db.execute(
         select(ST_AsGeoJSON(Mission.flight_path).label("geojson"))
         .where(Mission.id == mission_id)
     )
     geometry = result.scalar_one_or_none()
-    if geometry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
 
     if geometry is None:
         return {"type": "FeatureCollection", "features": []}
@@ -210,3 +217,12 @@ async def get_mission_flightpath(mission_id: UUID, db: AsyncSession = Depends(ge
             }
         ],
     }
+
+
+@router.get("/{mission_id}/detections")
+async def get_mission_detections(mission_id: UUID, db: AsyncSession = Depends(get_db)):
+    mission = await db.get(Mission, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+
+    return await mission_detections_geojson(db, mission_id)
