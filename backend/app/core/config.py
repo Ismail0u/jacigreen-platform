@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     AI_CONFIDENCE_THRESHOLD: float = 0.45
 
     DEBUG: bool = True
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173/"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173"
 
     @field_validator("DEBUG", mode="before")
     @classmethod
