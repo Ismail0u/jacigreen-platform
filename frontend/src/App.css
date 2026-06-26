@@ -23,7 +23,7 @@ body {
 }
 
 .mission-map-wrapper {
-  height: 100vh;
+  min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
 }
@@ -46,11 +46,14 @@ body {
 
 .mission-map-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
 }
 
-.mission-map-controls input {
+.mission-map-controls input,
+.mission-map-controls select,
+.mission-create-form input {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 14px;
@@ -58,7 +61,8 @@ body {
   font-size: 0.95rem;
 }
 
-.mission-map-controls button {
+.mission-map-controls button,
+.mission-create-form button {
   border: none;
   border-radius: 10px;
   background: var(--accent);
@@ -68,9 +72,27 @@ body {
   cursor: pointer;
 }
 
-.mission-map-controls button:disabled {
+.mission-map-controls button:disabled,
+.mission-create-form button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.mission-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.mission-create-form input[type='datetime-local'] {
+  width: 220px;
+}
+
+.create-status {
+  color: #166534;
+  font-size: 0.92rem;
 }
 
 .mission-map-error {
@@ -80,7 +102,8 @@ body {
 
 .mission-map-container {
   width: 100%;
-  height: calc(100vh - 88px);
+  min-height: 520px;
+  height: 100%;
 }
 
 .leaflet-container {
@@ -135,6 +158,13 @@ body {
   gap: 10px;
 }
 
+.analysis-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
 .upload-form label {
   font-weight: 600;
 }
@@ -157,12 +187,39 @@ body {
   width: fit-content;
 }
 
+.analysis-form button {
+  border: none;
+  border-radius: 10px;
+  background: #166534;
+  color: white;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+}
+
 .upload-form button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
 
+.analysis-form button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .upload-status {
+  color: #166534;
+  margin: 0;
+}
+
+.upload-hint {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.analysis-status {
   color: #166534;
   margin: 0;
 }

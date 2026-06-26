@@ -39,3 +39,8 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 *.swp
+
+backend/storage/photos/*
+images/*
+AGENTS.md
+JACIGREEN_CONTEXT.md
