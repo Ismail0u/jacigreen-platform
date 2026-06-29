@@ -7,28 +7,14 @@ from sqlalchemy import select, update
 
 from app.core.celery_app import celery_app
 from app.core.config import ROOT_DIR, settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, engine  # Import de l'engine ajouté ici
 from app.models.ai_analysis_task import AIAnalysisTask
 from app.models.detection import Detection
 from app.models.mission import Mission
 from app.models.photo import Photo
 
-
 _strategy = None
 
-"""
-Strategy for handling AI detection tasks.
-model_path: Path to the AI model file (YOLOv8 or ONNX).
-The strategy is determined based on the file extension of the model path.
-detection strategies:
-- YOLOv8Strategy: Used for YOLOv8 model files.
-- ONNXStrategy: Used for ONNX model files.  
-detection process:
-1. Read image bytes from storage or URL.
-2. Use the selected strategy to detect objects in the image.
-3. Store detection results in the database, including bounding boxes, confidence scores, and species information
-
-"""
 
 def _model_path() -> Path:
     path = Path(settings.AI_MODEL_PATH)
@@ -45,11 +31,9 @@ def get_strategy():
     model_path = _model_path()
     if model_path.suffix.lower() == ".onnx":
         from app.services.ai.detection_strategy import ONNXStrategy
-
         _strategy = ONNXStrategy(model_path)
     else:
         from app.services.ai.detection_strategy import YOLOv8Strategy
-
         _strategy = YOLOv8Strategy(model_path)
     return _strategy
 
@@ -60,7 +44,6 @@ async def _read_image_bytes(storage_url: str) -> bytes:
         return storage_path.read_bytes()
 
     import httpx
-
     async with httpx.AsyncClient() as client:
         response = await client.get(storage_url, timeout=30)
         response.raise_for_status()
@@ -83,11 +66,22 @@ def _confidence_label(confidence: float) -> str:
     acks_late=True,
 )
 def analyze_mission(self, mission_id: str):
-    asyncio.run(_async_analyze(mission_id, self.request.id))
-    return {"mission_id": mission_id, "status": "completed"}
+    """
+    Point d'entrée synchrone Celery exécutant la logique de boucle asynchrone.
+    """
+    global _strategy
+    # 1. Reset de la stratégie globale pour détruire les liens avec une boucle précédente
+    _strategy = None
+
+    # 2. CRITIQUE : Force l'engine SQLAlchemy à jeter le pool de connexions lié à l'ancienne boucle.
+    # Les prochaines requêtes ouvriront de nouvelles connexions saines sur la nouvelle boucle.
+    asyncio.run(engine.dispose(close=False))
+
+    # 3. Exécution isolée et sécurisée via asyncio.run
+    return asyncio.run(_async_analyze(mission_id, self.request.id))
 
 
-async def _async_analyze(mission_id: str, celery_task_id: str | None = None) -> None:
+async def _async_analyze(mission_id: str, celery_task_id: str | None = None) -> dict:
     mission_uuid = UUID(mission_id)
     threshold = float(settings.AI_CONFIDENCE_THRESHOLD)
     strategy = get_strategy()
@@ -119,9 +113,15 @@ async def _async_analyze(mission_id: str, celery_task_id: str | None = None) -> 
             result = await db.execute(select(Photo).where(Photo.mission_id == mission_uuid))
             photos = result.scalars().all()
 
+            loop = asyncio.get_running_loop()
+
             for photo in photos:
                 image_bytes = await _read_image_bytes(photo.storage_url)
-                detections_raw = strategy.detect(image_bytes, threshold)
+                
+                # Exécution de l'inférence CPU/GPU synchrone dans un thread séparé
+                detections_raw = await loop.run_in_executor(
+                    None, strategy.detect, image_bytes, threshold
+                )
 
                 for detection_raw in detections_raw:
                     x1, y1, x2, y2 = detection_raw["bbox_xyxy"]
@@ -151,6 +151,7 @@ async def _async_analyze(mission_id: str, celery_task_id: str | None = None) -> 
                 task_row.status = "SUCCESS"
                 task_row.completed_at = datetime.utcnow()
             await db.commit()
+            
         except Exception as exc:
             await db.execute(
                 update(Mission)
@@ -163,3 +164,5 @@ async def _async_analyze(mission_id: str, celery_task_id: str | None = None) -> 
                 task_row.error_message = str(exc)
             await db.commit()
             raise
+
+    return {"mission_id": mission_id, "status": "completed"}
