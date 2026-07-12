@@ -1,11 +1,15 @@
 :root {
-  --text: #1f2937;
+  --text: #0f172a;
   --bg: #f8fafc;
   --surface: #ffffff;
   --border: #e2e8f0;
   --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --success: #166534;
   --error: #dc2626;
   font-family: Inter, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
   color: var(--text);
   background: var(--bg);
   margin: 0;
@@ -15,7 +19,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%);
 }
 
 #root {
@@ -25,13 +29,25 @@ body {
 .mission-map-wrapper {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
+  gap: 16px;
+  padding: 20px;
+}
+
+.mission-map-header,
+.mission-info-card,
+.mission-upload-panel,
+.mission-photo-card,
+.mission-details,
+.mission-report-card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 24px;
+  box-shadow: 0 16px 50px rgba(15, 23, 42, 0.08);
 }
 
 .mission-map-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 16px 20px;
+  padding: 20px 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -40,7 +56,7 @@ body {
 }
 
 .mission-map-header h1 {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   margin: 0;
 }
 
@@ -55,17 +71,20 @@ body {
 .mission-map-controls select,
 .mission-create-form input {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 14px;
   width: 240px;
   font-size: 0.95rem;
+  background: white;
 }
 
 .mission-map-controls button,
-.mission-create-form button {
+.mission-create-form button,
+.upload-form button,
+.analysis-form button {
   border: none;
-  border-radius: 10px;
-  background: var(--accent);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
   color: white;
   padding: 10px 16px;
   font-weight: 600;
@@ -73,7 +92,9 @@ body {
 }
 
 .mission-map-controls button:disabled,
-.mission-create-form button:disabled {
+.mission-create-form button:disabled,
+.upload-form button:disabled,
+.analysis-form button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
@@ -90,20 +111,47 @@ body {
   width: 220px;
 }
 
-.create-status {
-  color: #166534;
-  font-size: 0.92rem;
+.mission-info-card {
+  padding: 18px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.mission-info-pill {
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #1d4ed8;
+  font-size: 0.9rem;
+}
+
+.create-status,
+.upload-status,
+.analysis-status,
+.mission-map-error,
+.mission-selector-error {
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  width: fit-content;
 }
 
 .mission-map-error {
+  background: #fef2f2;
   color: var(--error);
-  width: 100%;
 }
 
 .mission-map-container {
   width: 100%;
-  min-height: 520px;
+  min-height: 620px;
   height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 16px 50px rgba(15, 23, 42, 0.08);
 }
 
 .leaflet-container {
@@ -111,15 +159,24 @@ body {
   height: 100%;
 }
 
-.mission-details {
-  padding: 18px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+.mission-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 16px;
 }
 
-.mission-details h2 {
+.mission-details,
+.mission-upload-panel,
+.mission-report-card,
+.mission-photo-card {
+  padding: 18px 20px;
+}
+
+.mission-details h2,
+.mission-photo-card h3,
+.mission-report-card h3 {
   margin: 0 0 12px;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
 .mission-details dl {
@@ -146,23 +203,13 @@ body {
 
 .mission-upload-panel {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 20px;
 }
 
-.upload-form {
+.upload-form,
+.analysis-form {
   display: grid;
   gap: 10px;
-}
-
-.analysis-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
 }
 
 .upload-form label {
@@ -176,51 +223,9 @@ body {
   background: var(--bg);
 }
 
-.upload-form button {
-  border: none;
-  border-radius: 10px;
-  background: var(--accent);
-  color: white;
-  padding: 10px 16px;
-  font-weight: 600;
-  cursor: pointer;
-  width: fit-content;
-}
-
-.analysis-form button {
-  border: none;
-  border-radius: 10px;
-  background: #166534;
-  color: white;
-  padding: 10px 16px;
-  font-weight: 600;
-  cursor: pointer;
-  width: fit-content;
-}
-
-.upload-form button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.analysis-form button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.upload-status {
-  color: #166534;
-  margin: 0;
-}
-
 .upload-hint {
   color: #64748b;
   font-size: 0.9rem;
-  margin: 0;
-}
-
-.analysis-status {
-  color: #166534;
   margin: 0;
 }
 
@@ -228,4 +233,17 @@ body {
   margin: 0;
   padding-left: 18px;
   color: var(--error);
+}
+
+.mission-photo-card img {
+  width: 100%;
+  border-radius: 16px;
+  object-fit: cover;
+  max-height: 280px;
+}
+
+@media (max-width: 900px) {
+  .mission-panel-grid {
+    grid-template-columns: 1fr;
+  }
 }
