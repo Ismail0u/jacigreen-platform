@@ -10,11 +10,14 @@ from geoalchemy2.functions import ST_AsGeoJSON, ST_X, ST_Y
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user, require_admin
+from app.models.user import User
 from app.models import Mission, Photo
+from app.models.detection import Detection
 from app.schemas.mission import MissionCreate, MissionRead, MissionUpdate
 from app.services.detection_geojson import mission_detections_geojson
 from app.services.exif_service import extract_gps
+from app.services.mission_report import build_mission_report_payload
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
@@ -55,8 +58,12 @@ async def get_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=MissionRead, status_code=status.HTTP_201_CREATED)
-async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_db)):
-    mission = Mission(**payload.model_dump())
+async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    data = payload.model_dump()
+    # If operator_id is not provided, set to current user
+    if not data.get('operator_id'):
+        data['operator_id'] = getattr(current_user, 'id')
+    mission = Mission(**data)
     db.add(mission)
     await db.commit()
     await db.refresh(mission)
@@ -64,7 +71,7 @@ async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_
 
 
 @router.put("/{mission_id}", response_model=MissionRead)
-async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSession = Depends(get_db)):
+async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Mission).where(Mission.id == mission_id))
     mission = result.scalar_one_or_none()
     if mission is None:
@@ -78,7 +85,7 @@ async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSess
 
 
 @router.delete("/{mission_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_mission(mission_id: UUID, db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)):
     result = await db.execute(select(Mission).where(Mission.id == mission_id))
     mission = result.scalar_one_or_none()
     if mission is None:
@@ -92,6 +99,7 @@ async def upload_mission_photos(
     mission_id: UUID,
     files: list[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Mission).where(Mission.id == mission_id))
     mission = result.scalar_one_or_none()
@@ -133,6 +141,7 @@ async def upload_mission_photos(
             location=location,
             altitude_m=gps.altitude,
             captured_at=gps.captured_at,
+            uploaded_by=getattr(current_user, 'id', None),
         )
         db.add(photo)
         uploaded.append({"file": file.filename, "storage_url": storage_url})
@@ -226,3 +235,18 @@ async def get_mission_detections(mission_id: UUID, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
 
     return await mission_detections_geojson(db, mission_id)
+
+
+@router.get("/{mission_id}/report")
+async def get_mission_report(mission_id: UUID, db: AsyncSession = Depends(get_db)):
+    mission = await db.get(Mission, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+
+    photo_result = await db.execute(select(Photo).where(Photo.mission_id == mission_id))
+    photos = photo_result.scalars().all()
+
+    detection_result = await db.execute(select(Detection).where(Detection.mission_id == mission_id))
+    detections = detection_result.scalars().all()
+
+    return build_mission_report_payload(mission, photos, detections)
