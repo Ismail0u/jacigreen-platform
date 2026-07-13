@@ -7,7 +7,8 @@ from geoalchemy2.functions import ST_X, ST_Y
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user, require_admin
+from app.models.user import User
 from app.models import Photo
 from app.schemas.photo import PhotoCreate, PhotoRead, PhotoUpdate
 """Photo API routes.
@@ -55,9 +56,10 @@ async def get_photo(photo_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=PhotoRead, status_code=status.HTTP_201_CREATED)
-async def create_photo(payload: PhotoCreate, db: AsyncSession = Depends(get_db)):
+async def create_photo(payload: PhotoCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     data = payload.model_dump()
     data["location"] = WKTElement(data["location"], srid=4326)
+    data["uploaded_by"] = getattr(current_user, 'id', None)
     photo = Photo(**data)
     db.add(photo)
     await db.commit()
@@ -66,7 +68,7 @@ async def create_photo(payload: PhotoCreate, db: AsyncSession = Depends(get_db))
 
 
 @router.put("/{photo_id}", response_model=PhotoRead)
-async def update_photo(photo_id: UUID, payload: PhotoUpdate, db: AsyncSession = Depends(get_db)):
+async def update_photo(photo_id: UUID, payload: PhotoUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Photo).where(Photo.id == photo_id))
     photo = result.scalar_one_or_none()
     if photo is None:
@@ -82,7 +84,7 @@ async def update_photo(photo_id: UUID, payload: PhotoUpdate, db: AsyncSession = 
 
 
 @router.delete("/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_photo(photo_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_photo(photo_id: UUID, db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)):
     result = await db.execute(select(Photo).where(Photo.id == photo_id))
     photo = result.scalar_one_or_none()
     if photo is None:

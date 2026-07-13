@@ -32,7 +32,7 @@ export function MissionSelector({ value, onChange, refreshKey = 0 }: Props) {
       try {
         const response = await axios.get<MissionOption[]>(`${apiUrl}/api/v1/missions`)
         setMissions(response.data.map((mission) => ({ id: mission.id, name: mission.name })))
-      } catch (err) {
+      } catch (error) {
         setError('Impossible de charger les missions')
       } finally {
         setLoading(false)
