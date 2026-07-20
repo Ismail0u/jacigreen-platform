@@ -7,7 +7,7 @@ import os
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
 
@@ -60,7 +60,9 @@ def decode_token(token: str) -> Optional[str]:
         return None
 
 
-async def get_current_user_id(credentials: HTTPAuthCredentials = Depends(security)) -> str:
+async def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
     """Dependency to extract and validate JWT from Authorization header."""
     token = credentials.credentials
     user_id = decode_token(token)
