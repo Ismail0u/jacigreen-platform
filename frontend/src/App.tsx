@@ -6,6 +6,7 @@ import { RoleDashboard } from './components/RoleDashboard'
 import { LoginPage } from './pages/LoginPage'
 import { authService } from './services/authService'
 import type { AuthToken, User } from './services/authService'
+import jacilogo from '../public/jacigreen.jpg'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -49,13 +50,14 @@ function App() {
     <div className="app-shell">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255, 255, 255, 0.94)', borderBottom: '1px solid rgba(148, 163, 184, 0.24)' }}>
         <div>
+          <img src={jacilogo} alt="Jaci Green" style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover' }} />
           <strong>{currentUser?.email}</strong> <span style={{ color: '#64748b', fontSize: '0.9rem' }}>({currentUser?.role})</span>
         </div>
         <button onClick={handleLogout} style={{ border: 'none', borderRadius: '999px', background: '#dc2626', color: 'white', padding: '0.5rem 1rem', cursor: 'pointer', fontWeight: 600 }}>
           Déconnexion
         </button>
       </div>
-      <RoleDashboard role={currentUser?.role ?? 'collaborator'} />
+        { /* <RoleDashboard role={currentUser?.role ?? 'collaborator'} /> */ }
       <MissionMap />
     </div>
   )
