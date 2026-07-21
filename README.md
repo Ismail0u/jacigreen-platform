@@ -1,9 +1,9 @@
-# JACIGREEN DroneSurveillance Platform 🚁
+# JACIGREEN DroneSurveillance Platform 
 
 Plateforme web + mobile pour surveiller et cartographier les plantes envahissantes par drone au Niger.
 Détection automatique via IA YOLOv8, visualisation temps réel sur carte, sync offline-first mobile.
 
-## 📋 Stack Technique
+## Stack Technique
 
 | Composant | Tech |
 |-----------|------|
@@ -16,7 +16,7 @@ Détection automatique via IA YOLOv8, visualisation temps réel sur carte, sync 
 | **Storage** | Supabase Storage (free) · EXIF extraction |
 | **Auth** | JWT (RS256) · bcrypt password hashing |
 
-## 🚀 Démarrage Rapide
+##  Démarrage Rapide
 
 ### 1. Setup infrastructure locale
 
@@ -28,7 +28,7 @@ cp .env.example .env
 
 # Docker: PostgreSQL + PostGIS + Redis
 docker compose up -d
-docker compose ps  # Vérifier ✅
+docker compose ps  # Vérifier 
 
 # Créer venv backend
 cd backend
@@ -62,55 +62,55 @@ npm start
 # Scan QR avec Expo Go
 ```
 
-## 📚 Documentation
+##  Documentation
 
-- **📖 [ROADMAP.md](./ROADMAP.md)** - Feuille de route détaillée (15 phases, timeline 8 semaines)
-- **📖 [MOBILE_AI_HOSTING.md](./MOBILE_AI_HOSTING.md)** - Setup mobile, training YOLOv8, déploiement gratuit
-- **📖 [ma_doc.md](./ma_doc.md)** - Architecture technique approfondie
-- **📖 [Backend README](./backend/README.md)** - Setup backend détaillé
-- **📖 [Frontend README](./frontend/README.md)** - Setup frontend détaillé
+- ** [ROADMAP.md](./ROADMAP.md)** - Feuille de route détaillée (15 phases, timeline 8 semaines)
+- ** [MOBILE_AI_HOSTING.md](./MOBILE_AI_HOSTING.md)** - Setup mobile, training YOLOv8, déploiement gratuit
+- ** [ma_doc.md](./ma_doc.md)** - Architecture technique approfondie
+- ** [Backend README](./backend/README.md)** - Setup backend détaillé
+- ** [Frontend README](./frontend/README.md)** - Setup frontend détaillé
 
-## ✨ Fonctionnalités MVP (Phase 1-3)
+##  Fonctionnalités MVP (Phase 1-3)
 
-### ✅ Authentification
+###  Authentification
 - [x] Login collaborateur (email + password)
 - [ ] Force password change 1ère connexion
 - [ ] RBAC: admin vs collaborator
 - [ ] JWT + refresh tokens
 
-### ✅ Missions
+###  Missions
 - [x] CRUD missions
 - [ ] Liste missions (collaborator → assignées seulement)
 - [ ] Détails mission + rapport
 - [ ] Affectation missions (admin)
 
-### ✅ Carte & GPS
+###  Carte & GPS
 - [x] Affichage zone sur Leaflet (GeoJSON)
 - [ ] Extraction GPS EXIF (piexif)
 - [ ] Saisie manuelle GPS fallback
 - [ ] Photos directes sur carte (clusters)
 
-### ✅ Interface
+###  Interface
 - [ ] Homepage pro (Tailwind)
 - [ ] Section À propos + logos
 - [ ] Responsive design (mobile-first)
 - [ ] Filtres recherche missions
 
-### ✅ IA
+###  IA
 - [ ] Fine-tuning YOLOv8n
 - [ ] Celery worker pour inférence
 - [ ] Enregistrement détections DB
 
-### ✅ Mobile
+###  Mobile
 - [ ] SQLite offline sync
 - [ ] Camera + GPS capture
 - [ ] Batch photo upload
 
-### ✅ Abonnements
+###  Abonnements
 - [ ] Validation manuelle par admin
 - [ ] Droits d'accès par tier
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 jacigreen-platform/
@@ -150,7 +150,7 @@ jacigreen-platform/
 └── ROADMAP.md                 # Feuille de route
 ```
 
-## 🔐 Security
+##  Security
 
 - JWT RS256 (key pair en env vars)
 - Passwords: bcrypt cost=12
@@ -159,7 +159,7 @@ jacigreen-platform/
 - HTTPS obligatoire prod (Railway, Netlify)
 - Secrets jamais en code (→ .env)
 
-## 🚢 Déploiement
+##  Déploiement
 
 **Production (Gratuit)**:
 - Backend: Railway.app (500h free/mois)
@@ -168,13 +168,13 @@ jacigreen-platform/
 - Storage: Supabase Files (1GB free)
 - → Voir [MOBILE_AI_HOSTING.md](./MOBILE_AI_HOSTING.md) pour détails
 
-## 👥 Équipe
+##  Équipe
 
 **Propriétaire**: JACIGREEN Africa (Mariama MAMANE, CEO)  
 **Développement**: Ismail Moussa  
 **DevSecOps**: Best practices FastAPI + React + Mobile
 
-## 📞 Support
+##  Support
 
 - **Issues**: GitHub issues
 - **Docs**: Lire ROADMAP.md, MOBILE_AI_HOSTING.md, ma_doc.md
