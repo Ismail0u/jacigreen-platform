@@ -4,19 +4,19 @@ from pathlib import Path
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from geoalchemy2 import WKTElement
 from geoalchemy2.functions import ST_AsGeoJSON, ST_X, ST_Y
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_current_user, require_admin
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models import Mission, Photo
 from app.models.detection import Detection
-from app.schemas.mission import MissionCreate, MissionRead, MissionUpdate
+from app.schemas.mission import MissionAssigneeUpdate, MissionCreate, MissionRead, MissionUpdate
 from app.services.detection_geojson import mission_detections_geojson
-from app.services.exif_service import extract_gps
+from app.services.exif_service import GpsData, extract_gps
 from app.services.mission_report import build_mission_report_payload
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff"}
@@ -24,41 +24,61 @@ MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 """
-Mission API routes.
-This module defines the API routes for managing missions in the JACIGREEN DroneSurveillance application
-. It includes endpoints for listing, retrieving, creating, updating, and deleting missions. Each endpoint interacts with the database through the async session. 
-    The routes are organized under the "/missions" prefix and are tagged as "missions" for API documentation purposes. The endpoints use Pydantic schemas for request validation and response serialization. 
-    The list_missions endpoint retrieves all missions, while the get_mission endpoint retrieves a specific mission by its ID. The create_mission endpoint allows for creating a new mission, and the update_mission endpoint allows for updating an existing mission. Finally, the delete_mission endpoint allows for deleting a mission by its ID.
-    Additionally, there is an endpoint to retrieve the GeoJSON representation of all photos associated with a specific mission, which can be used for mapping and spatial analysis purposes.
-get_mission_geojson endpoint retrieves all photos associated with a specific mission and returns them in GeoJSON format, which includes the photo's ID, filename, storage URL, altitude, and geographic coordinates (longitude and latitude). This allows for easy integration with mapping libraries and spatial analysis tools.
-missions are a core entity in the application, representing a drone surveillance operation that can have multiple photos associated with it. The API routes defined in this module provide the necessary functionality to manage missions and their related photos effectively.
-routes are designed to follow RESTful principles, making it easy for clients to interact with the API and perform CRUD operations on missions and their associated photos. The use of async database sessions ensures that the API can handle concurrent requests efficiently, providing a responsive experience for users.
-validation and error handling are implemented to ensure that clients receive appropriate responses when interacting with the API, such as returning a 404 status code when a mission or photo is not found. This helps maintain the integrity of the application and provides clear feedback to clients.
-mission management is a critical aspect of the JACIGREEN DroneSurveillance application, and the API routes defined in this module provide a comprehensive set of tools for managing missions and their associated photos. By leveraging FastAPI, SQLAlchemy, and GeoAlchemy2, the application can efficiently handle spatial data and provide a robust platform for drone surveillance operations.
-postgis and spatial data support are integral to the application's functionality, allowing for advanced geospatial queries and analysis. The use of GeoAlchemy2 enables seamless integration with PostGIS, providing powerful spatial capabilities for managing and analyzing geographic data related to missions and photos.
-yolov8 and object detection integration can be implemented in the future to enhance the capabilities of the JACIGREEN DroneSurveillance application. By leveraging YOLOv8 for real-time object detection, the application can automatically identify and classify objects in drone-captured images, providing valuable insights for surveillance and monitoring purposes. This integration can further enhance the application's functionality and provide users with advanced tools for analyzing and interpreting spatial data collected during drone missions.
-routes are designed to be modular and extensible, allowing for easy addition of new features and functionality as the application evolves. This modularity ensures that the application can adapt to changing requirements and incorporate new technologies and methodologies as they become available.
-"""
+API routes for managing missions, including listing, creating, updating, deleting missions, uploading photos,
+ retrieving mission data in GeoJSON format, and generating mission reports. Access to certain endpoints is restricted based on user roles (admin or collaborator).
+ Endpoints:
+ - GET /missions: List all missions
+ - GET /missions/{mission_id}: Get a specific mission
+ - POST /missions: Create a new mission
+ - PUT /missions/{mission_id}: Update a specific mission
+ - PUT /missions/{mission_id}/assignee: Assign a collaborator to a mission
+ """
 router = APIRouter(prefix="/missions", tags=["missions"])
 
 
+async def _get_accessible_mission(db: AsyncSession, mission_id: UUID, current_user: User) -> Mission:
+    """Return a mission only when the current user is allowed to access it."""
+    statement = select(Mission).where(Mission.id == mission_id)
+    if current_user.role != UserRole.ADMIN:
+        statement = statement.where(Mission.operator_id == current_user.id)
+
+    mission = (await db.execute(statement)).scalar_one_or_none()
+    if mission is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mission introuvable ou non autorisée",
+        )
+    return mission
+
+
 @router.get("/", response_model=List[MissionRead])
-async def list_missions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Mission).order_by(Mission.created_at.desc()))
+async def list_missions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all missions for administrators, or only assigned missions for collaborators."""
+    statement = select(Mission).order_by(Mission.created_at.desc())
+    if current_user.role != UserRole.ADMIN:
+        statement = statement.where(Mission.operator_id == current_user.id)
+    result = await db.execute(statement)
     return result.scalars().all()
 
 
 @router.get("/{mission_id}", response_model=MissionRead)
-async def get_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Mission).where(Mission.id == mission_id))
-    mission = result.scalar_one_or_none()
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
-    return mission
+async def get_mission(
+    mission_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await _get_accessible_mission(db, mission_id, current_user)
 
 
 @router.post("/", response_model=MissionRead, status_code=status.HTTP_201_CREATED)
-async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_mission(
+    payload: MissionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     data = payload.model_dump()
     # If operator_id is not provided, set to current user
     if not data.get('operator_id'):
@@ -71,7 +91,12 @@ async def create_mission(payload: MissionCreate, db: AsyncSession = Depends(get_
 
 
 @router.put("/{mission_id}", response_model=MissionRead)
-async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def update_mission(
+    mission_id: UUID,
+    payload: MissionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     result = await db.execute(select(Mission).where(Mission.id == mission_id))
     mission = result.scalar_one_or_none()
     if mission is None:
@@ -84,12 +109,37 @@ async def update_mission(mission_id: UUID, payload: MissionUpdate, db: AsyncSess
     return mission
 
 
+@router.put("/{mission_id}/assignee", response_model=MissionRead)
+async def assign_collaborator(
+    mission_id: UUID,
+    payload: MissionAssigneeUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Assign a collaborator to a mission. Administrators retain access to every mission."""
+    mission = await db.get(Mission, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission introuvable")
+
+    collaborator = await db.get(User, payload.collaborator_id)
+    if collaborator is None or not collaborator.is_active or collaborator.role != UserRole.COLLABORATOR:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le collaborateur sélectionné est introuvable ou inactif",
+        )
+
+    mission.operator_id = collaborator.id
+    db.add(mission)
+    await db.commit()
+    await db.refresh(mission)
+    return mission
+
+
 @router.delete("/{mission_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mission(mission_id: UUID, db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    result = await db.execute(select(Mission).where(Mission.id == mission_id))
-    mission = result.scalar_one_or_none()
+    mission = await db.get(Mission, mission_id)
     if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission introuvable")
     await db.delete(mission)
     await db.commit()
 
@@ -98,13 +148,28 @@ async def delete_mission(mission_id: UUID, db: AsyncSession = Depends(get_db), _
 async def upload_mission_photos(
     mission_id: UUID,
     files: list[UploadFile] = File(...),
+    latitude: float | None = Form(default=None),
+    longitude: float | None = Form(default=None),
+    altitude_m: float | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Mission).where(Mission.id == mission_id))
-    mission = result.scalar_one_or_none()
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+    """Upload mission photos and locate them with EXIF or supplied GPS coordinates.
+
+    Drone images normally contain EXIF GPS data. Mobile captures often do not, so
+    the client can provide a pair of WGS84 coordinates as an explicit fallback.
+    """
+    await _get_accessible_mission(db, mission_id, current_user)
+
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Latitude and longitude must be provided together",
+        )
+    if latitude is not None and not -90 <= latitude <= 90:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid latitude")
+    if longitude is not None and not -180 <= longitude <= 180:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid longitude")
 
     uploaded = []
     errors = []
@@ -123,9 +188,13 @@ async def upload_mission_photos(
 
         try:
             gps = extract_gps(content)
+            source = "drone"
         except ValueError as exc:
-            errors.append({"file": file.filename, "error": str(exc)})
-            continue
+            if latitude is None or longitude is None:
+                errors.append({"file": file.filename, "error": str(exc)})
+                continue
+            gps = GpsData(latitude=latitude, longitude=longitude, altitude=altitude_m)
+            source = "mobile"
 
         safe_filename = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
         target_path = storage_dir / safe_filename
@@ -141,6 +210,7 @@ async def upload_mission_photos(
             location=location,
             altitude_m=gps.altitude,
             captured_at=gps.captured_at,
+            source=source,
             uploaded_by=getattr(current_user, 'id', None),
         )
         db.add(photo)
@@ -156,7 +226,12 @@ async def upload_mission_photos(
 
 
 @router.get("/{mission_id}/geojson")
-async def get_mission_geojson(mission_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_mission_geojson(
+    mission_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_accessible_mission(db, mission_id, current_user)
     result = await db.execute(
         select(
             Photo.id,
@@ -196,10 +271,12 @@ async def get_mission_geojson(mission_id: UUID, db: AsyncSession = Depends(get_d
 
 
 @router.get("/{mission_id}/flightpath")
-async def get_mission_flightpath(mission_id: UUID, db: AsyncSession = Depends(get_db)):
-    mission = await db.get(Mission, mission_id)
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+async def get_mission_flightpath(
+    mission_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    mission = await _get_accessible_mission(db, mission_id, current_user)
 
     if mission.flight_path is None:
         return {"type": "FeatureCollection", "features": []}
@@ -229,19 +306,23 @@ async def get_mission_flightpath(mission_id: UUID, db: AsyncSession = Depends(ge
 
 
 @router.get("/{mission_id}/detections")
-async def get_mission_detections(mission_id: UUID, db: AsyncSession = Depends(get_db)):
-    mission = await db.get(Mission, mission_id)
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+async def get_mission_detections(
+    mission_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_accessible_mission(db, mission_id, current_user)
 
     return await mission_detections_geojson(db, mission_id)
 
 
 @router.get("/{mission_id}/report")
-async def get_mission_report(mission_id: UUID, db: AsyncSession = Depends(get_db)):
-    mission = await db.get(Mission, mission_id)
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found")
+async def get_mission_report(
+    mission_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    mission = await _get_accessible_mission(db, mission_id, current_user)
 
     photo_result = await db.execute(select(Photo).where(Photo.mission_id == mission_id))
     photos = photo_result.scalars().all()

@@ -22,6 +22,7 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     RefreshTokenRequest,
     UserResponse,
+    UserCreateResponse,
     UserCreateRequest,
     UserUpdateRequest,
     ResetPasswordRequest,
@@ -30,6 +31,21 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+"""Authentication and user management endpoints.
+This module provides endpoints for user login, token management (access and refresh tokens), password changes,
+ and admin-only user management operations such as creating, updating, resetting passwords, and deleting users.
+ Endpoints:
+auth/login: User login with email and password, returns access and refresh tokens.
+auth/refresh: Refresh access token using a valid refresh token.
+auth/change-password: Change password for the current authenticated user.
+auth/me: Get current authenticated user information.
+auth/logout: Logout the current user (token revocation can be implemented in production).
+Admin-only endpoints:
+auth/admin/users: Create a new user (collaborator) with a temporary password.
+auth/admin/users/{user_id}: Update user details.
+auth/admin/users/{user_id}/reset-password: Reset user password to a temporary value.
+auth/admin/users/{user_id}: Delete user (soft delete by marking as inactive).
+"""
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
@@ -74,12 +90,10 @@ async def refresh(
 ):
     """Refresh access token using refresh token."""
     # Note: In production, verify refresh token properly and check it's not revoked
-    user_id = None
-    try:
-        from app.core.security import decode_token
-        user_id = decode_token(payload.refresh_token)
-    except Exception:
-        pass
+    from app.core.security import decode_token_payload
+
+    token_payload = decode_token_payload(payload.refresh_token)
+    user_id = token_payload.get("sub") if token_payload and token_payload.get("type") == "refresh" else None
 
     if not user_id:
         raise HTTPException(
@@ -148,7 +162,7 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 # Admin-only endpoints for user management
 
-@router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/admin/users", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     payload: UserCreateRequest,
     current_user: User = Depends(require_admin),
@@ -176,16 +190,18 @@ async def create_user(
         last_name=payload.last_name,
         is_active=True,
         force_password_change=True,  # Must change password on first login
+        subscription_tier=payload.subscription_tier,
+        subscription_status=payload.subscription_status,
+        subscription_valid_until=payload.subscription_valid_until,
     )
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
 
-    # In production, send email with temp_password to user
-    # For now, just log it
-    print(f"🔐 New user created: {new_user.email}, Temp Password: {temp_password}")
-
-    return UserResponse.model_validate(new_user)
+    return UserCreateResponse.model_validate({
+        **UserResponse.model_validate(new_user).model_dump(),
+        "temporary_password": temp_password,
+    })
 
 
 @router.put("/admin/users/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK)
@@ -240,9 +256,6 @@ async def reset_password(
     db.add(user)
     await db.commit()
 
-    # In production, send email to user
-    print(f"🔐 Password reset for {user.email}, Temp Password: {temp_password}")
-
     return ResetPasswordResponse(temporary_password=temp_password)
 
 
@@ -266,4 +279,3 @@ async def delete_user(
     user.is_active = False
     db.add(user)
     await db.commit()
-
