@@ -20,6 +20,7 @@ from uuid import uuid4
 
 from app.schemas.mission import MissionCreate, MissionRead
 from app.schemas.photo import PhotoRead
+from app.core.security import create_access_token, create_refresh_token, decode_token_payload
 
 
 
@@ -107,3 +108,14 @@ def test_photo_read_exposes_latitude_longitude_without_location():
 
     # Vérifie que le champ interne PostGIS reste caché.
     assert "location" not in dumped
+
+
+def test_access_and_refresh_tokens_have_distinct_types():
+    """A refresh endpoint must never accept an access token as a refresh token."""
+    user_id = str(uuid4())
+
+    access_payload = decode_token_payload(create_access_token(user_id))
+    refresh_payload = decode_token_payload(create_refresh_token(user_id))
+
+    assert access_payload["type"] == "access"
+    assert refresh_payload["type"] == "refresh"

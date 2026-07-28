@@ -37,6 +37,12 @@ class MissionUpdate(BaseModel):
     completed_at: Optional[datetime] = None
 
 
+class MissionAssigneeUpdate(BaseModel):
+    """Administrative assignment of one field collaborator to a mission."""
+
+    collaborator_id: UUID
+
+
 class MissionRead(MissionBase):
     id: UUID
     created_at: datetime
