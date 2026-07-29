@@ -14,7 +14,7 @@ Plateforme de surveillance par drone pour la détection et cartographie des plan
 
 ### 1.1 Authentification Collaborateur
 
-**Status**: 🔴 À faire
+**Status**: 🟡 En cours
 
 **Objectifs**:
 - Login par email + password
@@ -52,7 +52,7 @@ GET  /api/v1/auth/me                (current user)
 
 ### 1.2 RBAC & Permissions
 
-**Status**: 🔴 À faire
+**Status**: 🟡 En cours
 
 **Rôles**:
 - `admin` - Accès complet, création collaborateurs, gestion missions
@@ -88,7 +88,7 @@ class User(Base):
 
 ### 2.1 Liste des Missions
 
-**Status**: 🟡 En cours (API existe, UI à améliorer)
+**Status**: 🟡 En cours (API RBAC, affectation et UI de sélection disponibles ; filtres/pagination à compléter)
 
 **Affichage collaborateur**:
 - Liste missions assignées uniquement
@@ -457,11 +457,15 @@ class Subscription(Base):
 
 **Note**: Voir `MOBILE_AI_HOSTING.md` pour setup complet
 
-- React Native + Expo setup
-- Offline-first avec SQLite local
-- Sync mode → upload photos batch
-- Map Leaflet sur mobile
-- Camera integration
+**Status**: 🟡 En cours
+
+- [x] React Native + Expo setup
+- [x] Offline-first avec SQLite local (missions et file d’attente photos)
+- [x] Sync mode → upload photos batch
+- [x] Camera + capture GPS
+- [ ] Carte native sur mobile
+- [ ] Rafraîchissement du token et gestion des sessions expirées
+- [ ] Tests automatisés mobile et build EAS
 
 ---
 
