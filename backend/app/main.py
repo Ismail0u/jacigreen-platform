@@ -8,12 +8,16 @@ from sqlalchemy import text
 from app.api.v1.routes import router as api_router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.error_handlers import install_error_handlers
 
 """
-Main application setup for JACIGREEN DroneSurveillance API.
-This module initializes the FastAPI application, configures CORS middleware, and includes the API routes
-defined in the app.api.v1.routes package. It also defines a root endpoint for basic health checks and a /health endpoint that checks the database connection and retrieves the PostGIS version.
-The application is configured with metadata such as title, description, version, and documentation URLs for API"""
+Main application entry point for the JACIGREEN DroneSurveillance API.
+This module initializes the FastAPI application, configures middleware, mounts static file directories, and includes
+ the API router for version 1 of the API. It also provides health check and root endpoints to verify the application's status.
+ Endpoints: 
+ - GET /: Returns basic project information and status.
+ - GET /health: Performs a health check on the API and database connection, returning the status and PostGIS version.
+"""
 app = FastAPI(
     title="JACIGREEN DroneSurveillance API",
     description="API de surveillance drone et détection de plantes envahissantes",
@@ -21,6 +25,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

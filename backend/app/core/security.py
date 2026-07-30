@@ -35,7 +35,7 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": subject}
+    to_encode = {"exp": expire, "sub": subject, "type": "access"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -56,6 +56,14 @@ def decode_token(token: str) -> Optional[str]:
         if user_id is None:
             return None
         return user_id
+    except JWTError:
+        return None
+
+
+def decode_token_payload(token: str) -> Optional[dict]:
+    """Decode a JWT and expose claims when a route must validate its token type."""
+    try:
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
         return None
 

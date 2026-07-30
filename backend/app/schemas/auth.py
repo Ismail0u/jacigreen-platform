@@ -50,6 +50,9 @@ class UserResponse(BaseModel):
     last_name: Optional[str] = None
     is_active: bool
     force_password_change: bool
+    subscription_tier: str
+    subscription_status: str
+    subscription_valid_until: Optional[datetime] = None
     last_login: Optional[datetime] = None
     created_at: datetime
 
@@ -63,6 +66,9 @@ class UserCreateRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     role: str = "collaborator"
+    subscription_tier: str = "starter"
+    subscription_status: str = "active"
+    subscription_valid_until: Optional[datetime] = None
 
     class Config:
         json_schema_extra = {
@@ -82,6 +88,15 @@ class UserUpdateRequest(BaseModel):
     last_name: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    subscription_tier: Optional[str] = None
+    subscription_status: Optional[str] = None
+    subscription_valid_until: Optional[datetime] = None
+
+
+class UserCreateResponse(UserResponse):
+    """A newly-created account exposes its temporary password exactly once."""
+
+    temporary_password: str
 
 
 class ResetPasswordRequest(BaseModel):

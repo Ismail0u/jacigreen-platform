@@ -23,11 +23,20 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    subscription_tier: Optional[str] = None
+    subscription_status: Optional[str] = None
+    subscription_valid_until: Optional[datetime] = None
 
 
 class UserRead(UserBase):
     id: UUID
     is_active: bool
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    force_password_change: bool
+    subscription_tier: str
+    subscription_status: str
+    subscription_valid_until: Optional[datetime] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

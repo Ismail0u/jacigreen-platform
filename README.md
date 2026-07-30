@@ -75,14 +75,14 @@ npm start
 ###  Authentification
 - [x] Login collaborateur (email + password)
 - [ ] Force password change 1ère connexion
-- [ ] RBAC: admin vs collaborator
-- [ ] JWT + refresh tokens
+- [x] RBAC: admin vs collaborator (accès aux missions selon affectation)
+- [x] JWT + refresh tokens
 
 ###  Missions
 - [x] CRUD missions
-- [ ] Liste missions (collaborator → assignées seulement)
-- [ ] Détails mission + rapport
-- [ ] Affectation missions (admin)
+- [x] Liste missions (collaborator → assignées seulement)
+- [x] Détails mission + rapport
+- [x] Affectation d’un collaborateur à une mission (admin)
 
 ###  Carte & GPS
 - [x] Affichage zone sur Leaflet (GeoJSON)
@@ -102,9 +102,9 @@ npm start
 - [ ] Enregistrement détections DB
 
 ###  Mobile
-- [ ] SQLite offline sync
-- [ ] Camera + GPS capture
-- [ ] Batch photo upload
+- [x] SQLite offline cache des missions et file d’attente photos
+- [x] Camera + GPS capture
+- [x] Batch photo upload à la synchronisation
 
 ###  Abonnements
 - [ ] Validation manuelle par admin

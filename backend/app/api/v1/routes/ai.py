@@ -4,7 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, require_admin
+from app.api.v1.routes.missions import _get_accessible_mission
 from app.models.user import User
 from app.core.celery_app import celery_app
 from app.core.config import settings
@@ -17,8 +18,14 @@ from app.workers.ai_tasks import analyze_mission
 router = APIRouter(prefix="/ai", tags=["IA"])
 
 
+"""
+Admin-only endpoint to trigger AI analysis for a specific mission.
+admin-only endpoint to trigger AI analysis for a specific mission. It creates a new AIAnalysisTask in the database and queues a Celery task to perform the analysis asynchronously.
+This endpoint requires the user to be an admin and returns the task ID, status, and mission ID upon successful queuing of the analysis task.
+"""
+
 @router.post("/analyze/{mission_id}", status_code=status.HTTP_202_ACCEPTED)
-async def trigger_analysis(mission_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def trigger_analysis(mission_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     mission = await db.get(Mission, mission_id)
     if mission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission introuvable")
@@ -40,7 +47,7 @@ async def trigger_analysis(mission_id: UUID, db: AsyncSession = Depends(get_db),
 
 
 @router.get("/tasks/{task_id}")
-async def get_task_status(task_id: str, current_user: User = Depends(get_current_user)):
+async def get_task_status(task_id: str, current_user: User = Depends(require_admin)):
     task = celery_app.AsyncResult(task_id)
     result = task.result if task.ready() and task.successful() else None
     error = str(task.result) if task.failed() else None
@@ -54,8 +61,6 @@ async def get_task_status(task_id: str, current_user: User = Depends(get_current
 
 @router.get("/missions/{mission_id}/detections")
 async def get_ai_mission_detections(mission_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    mission = await db.get(Mission, mission_id)
-    if mission is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mission introuvable")
+    await _get_accessible_mission(db, mission_id, current_user)
 
     return await mission_detections_geojson(db, mission_id)

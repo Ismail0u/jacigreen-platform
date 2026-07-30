@@ -1,9 +1,11 @@
 import axios from 'axios'
+import { getApiErrorMessage } from './apiError'
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export interface AuthToken {
   access_token: string
+  refresh_token: string
   token_type: string
   expires_in: number
 }
@@ -42,14 +44,19 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<AuthToken> {
-    const response = await axios.post(`${apiUrl}/api/v1/auth/login`, { email, password })
+    let response
+    try {
+      response = await axios.post<AuthToken>(`${apiUrl}/api/v1/auth/login`, { email, password })
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'Connexion impossible. Vérifiez le serveur et vos identifiants.'), { cause: error })
+    }
     this.setToken(response.data.access_token)
-    await this.fetchCurrentUser()
-    return response.data
-  }
-
-  async register(email: string, password: string, role: string = 'collaborator'): Promise<User> {
-    const response = await axios.post(`${apiUrl}/api/v1/auth/register`, { email, password, role })
+    try {
+      await this.fetchCurrentUser()
+    } catch (error) {
+      this.logout()
+      throw new Error(getApiErrorMessage(error, 'Votre session n’a pas pu être initialisée.'), { cause: error })
+    }
     return response.data
   }
 
@@ -69,7 +76,7 @@ export class AuthService {
     localStorage.removeItem(this.userKey)
   }
 
-  getAuthHeader(): { Authorization: string } | {} {
+  getAuthHeader(): Record<string, string> {
     const token = this.getToken()
     return token ? { Authorization: `Bearer ${token}` } : {}
   }

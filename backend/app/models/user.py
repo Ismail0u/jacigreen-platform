@@ -39,6 +39,9 @@ class User(Base):
     last_name = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     force_password_change = Column(Boolean, default=True, nullable=False)
+    subscription_tier = Column(String(30), default="starter", nullable=False)
+    subscription_status = Column(String(30), default="active", nullable=False)
+    subscription_valid_until = Column(DateTime(timezone=True), nullable=True)
     last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -46,4 +49,3 @@ class User(Base):
     __table_args__ = (
         Index("idx_user_email_active", "email", "is_active"),
     )
-

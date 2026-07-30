@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { authService } from '../services/authService'
+import { getApiErrorMessage } from '../services/apiError'
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
  /**
@@ -30,10 +32,12 @@ export function MissionSelector({ value, onChange, refreshKey = 0 }: Props) {
       setLoading(true)
       setError(null)
       try {
-        const response = await axios.get<MissionOption[]>(`${apiUrl}/api/v1/missions`)
+        const response = await axios.get<MissionOption[]>(`${apiUrl}/api/v1/missions/`, {
+          headers: authService.getAuthHeader(),
+        })
         setMissions(response.data.map((mission) => ({ id: mission.id, name: mission.name })))
       } catch (error) {
-        setError('Impossible de charger les missions')
+        setError(getApiErrorMessage(error, 'Impossible de charger les missions. Réessayez dans quelques instants.'))
       } finally {
         setLoading(false)
       }
