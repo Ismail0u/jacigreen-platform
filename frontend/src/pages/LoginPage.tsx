@@ -11,8 +11,6 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [isRegister, setIsRegister] = useState(false)
-  const [registerRole, setRegisterRole] = useState<'admin' | 'collaborator'>('collaborator')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -20,14 +18,8 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
     setLoading(true)
 
     try {
-      if (isRegister) {
-        await authService.register(email, password, registerRole)
-        const token = await authService.login(email, password)
-        onLoginSuccess(token)
-      } else {
-        const token = await authService.login(email, password)
-        onLoginSuccess(token)
-      }
+      const token = await authService.login(email, password)
+      onLoginSuccess(token)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de l\'authentification')
     } finally {
@@ -50,7 +42,7 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
       >
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '0.5rem', color: '#0f172a' }}>JACIGREEN</h1>
-          <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>{isRegister ? 'Créer un compte' : 'Connexion'}</p>
+          <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Connexion à votre espace terrain</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
@@ -96,30 +88,6 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
             />
           </div>
 
-          {isRegister && (
-            <div>
-              <label htmlFor="role" style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem', color: '#0f172a' }}>
-                Rôle
-              </label>
-              <select
-                id="role"
-                value={registerRole}
-                onChange={(e) => setRegisterRole(e.target.value as 'admin' | 'collaborator')}
-                style={{
-                  width: '100%',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '0.7rem 0.85rem',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="collaborator">Collaborateur</option>
-                <option value="admin">Administrateur</option>
-              </select>
-            </div>
-          )}
-
           {error && (
             <div
               style={{
@@ -149,29 +117,12 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
               fontSize: '1rem',
             }}
           >
-            {loading ? (isRegister ? 'Création en cours...' : 'Connexion en cours...') : isRegister ? 'S\'inscrire' : 'Se connecter'}
+            {loading ? 'Connexion en cours...' : 'Se connecter'}
           </button>
         </form>
-
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(!isRegister)
-              setError(null)
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#2563eb',
-              cursor: 'pointer',
-              fontSize: '0.95rem',
-              textDecoration: 'underline',
-            }}
-          >
-            {isRegister ? 'Vous avez déjà un compte ? Se connecter' : 'Pas encore inscrit ? Créer un compte'}
-          </button>
-        </div>
+        <p style={{ marginTop: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+          Votre compte collaborateur est créé par un administrateur JACIGREEN.
+        </p>
       </div>
     </div>
   )

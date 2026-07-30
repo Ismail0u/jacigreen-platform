@@ -3,6 +3,7 @@ import { GeoJSON, MapContainer, TileLayer } from 'react-leaflet'
 import type { FeatureCollection, GeoJsonObject } from 'geojson'
 import axios from 'axios'
 import { authService } from '../services/authService'
+import { getApiErrorMessage } from '../services/apiError'
 import L from 'leaflet'
 
 import { MapAutoFit } from './MapAutoFit'
@@ -24,7 +25,20 @@ const DEFAULT_CENTER: [number, number] = [13.5137, 2.1168]
 const DEFAULT_ZOOM = 18
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-export function MissionMap() {
+interface MissionMapProps {
+  isAdmin: boolean
+}
+
+interface Collaborator {
+  id: string
+  email: string
+  first_name?: string | null
+  last_name?: string | null
+  role: string
+  is_active: boolean
+}
+
+export function MissionMap({ isAdmin }: MissionMapProps) {
   const [missionId, setMissionId] = useState('')
   const [missionInfo, setMissionInfo] = useState<MissionInfo | null>(null)
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null)
@@ -40,6 +54,9 @@ export function MissionMap() {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
   const [newMissionName, setNewMissionName] = useState('')
   const [newMissionDate, setNewMissionDate] = useState('')
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+  const [assigneeId, setAssigneeId] = useState('')
+  const [assignmentStatus, setAssignmentStatus] = useState<string | null>(null)
   const [missionsRefreshKey, setMissionsRefreshKey] = useState(0)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -47,6 +64,16 @@ export function MissionMap() {
   const [creatingMission, setCreatingMission] = useState(false)
 
   const photoCount = useMemo(() => geojson?.features.length ?? 0, [geojson])
+
+  async function loadCollaborators() {
+    if (!isAdmin || collaborators.length) return
+    try {
+      const { data } = await axios.get<Collaborator[]>(`${apiUrl}/api/v1/admin/users`, { headers: authService.getAuthHeader() })
+      setCollaborators(data.filter((user) => user.role === 'collaborator' && user.is_active))
+    } catch (error) {
+      setError(getApiErrorMessage(error, 'Impossible de charger les collaborateurs.'))
+    }
+  }
 
   async function loadMission() {
     setUploadStatus(null)
@@ -76,6 +103,8 @@ export function MissionMap() {
       setDetections(detectionsResponse.data)
       setReport(reportResponse.data)
       setSelectedPhoto(null)
+      setAssigneeId(missionResponse.data.operator_id || '')
+      void loadCollaborators()
 
       if (!photoResponse.data.features.length) {
         setError('Aucune photo trouvée pour cette mission')
@@ -87,9 +116,28 @@ export function MissionMap() {
       setDetections(null)
       setReport(null)
       setSelectedPhoto(null)
-      setError(axios.isAxiosError(err) && err.response ? `Erreur API ${err.response.status}` : 'Impossible de charger la mission')
+      setError(getApiErrorMessage(err, 'Impossible de charger la mission. Vérifiez votre connexion puis réessayez.'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function assignCollaborator() {
+    if (!missionId || !assigneeId) {
+      setAssignmentStatus('Sélectionnez un collaborateur avant de l’affecter.')
+      return
+    }
+    setAssignmentStatus(null)
+    try {
+      const { data } = await axios.put<MissionInfo>(
+        `${apiUrl}/api/v1/missions/${missionId}/assignee`,
+        { collaborator_id: assigneeId },
+        { headers: authService.getAuthHeader() },
+      )
+      setMissionInfo(data)
+      setAssignmentStatus('Collaborateur affecté à cette mission.')
+    } catch (error) {
+      setAssignmentStatus(getApiErrorMessage(error, 'Impossible d’affecter ce collaborateur.'))
     }
   }
 
@@ -127,7 +175,7 @@ export function MissionMap() {
       setMissionsRefreshKey((value) => value + 1)
       setCreateStatus('Mission créée avec succès')
     } catch (err) {
-      setCreateStatus(axios.isAxiosError(err) && err.response ? `Erreur API ${err.response.status}` : 'Impossible de créer la mission')
+      setCreateStatus(getApiErrorMessage(err, 'Impossible de créer la mission. Vérifiez les informations saisies.'))
     } finally {
       setCreatingMission(false)
     }
@@ -160,7 +208,7 @@ export function MissionMap() {
       await loadMission()
     } catch (err) {
       setUploadStatus(null)
-      setUploadErrors([axios.isAxiosError(err) && err.response ? `Erreur API ${err.response.status}` : 'Impossible d’uploader les photos'])
+      setUploadErrors([getApiErrorMessage(err, 'Impossible d’envoyer les photos. Vérifiez le réseau et les fichiers sélectionnés.')])
     } finally {
       setUploading(false)
     }
@@ -203,7 +251,7 @@ export function MissionMap() {
       setAnalysisStatus('Analyse IA toujours en cours')
     } catch (err) {
       setAnalysisStatus(null)
-      setError(axios.isAxiosError(err) && err.response ? `Erreur API ${err.response.status}` : 'Impossible de lancer l’analyse IA')
+      setError(getApiErrorMessage(err, 'Impossible de lancer l’analyse IA. Réessayez dans quelques instants.'))
     } finally {
       setAnalyzing(false)
     }
@@ -222,14 +270,16 @@ export function MissionMap() {
             {loading ? 'Chargement…' : 'Charger'}
           </button>
         </div>
-        <div className="mission-create-form">
-          <input type="text" placeholder="Nom de la nouvelle mission" value={newMissionName} onChange={(event) => setNewMissionName(event.target.value)} />
-          <input type="datetime-local" value={newMissionDate} onChange={(event) => setNewMissionDate(event.target.value)} />
-          <button onClick={createMission} disabled={creatingMission || !newMissionName.trim()}>
-            {creatingMission ? 'Création...' : 'Créer mission'}
-          </button>
-          {createStatus ? <span className="create-status">{createStatus}</span> : null}
-        </div>
+        {isAdmin ? (
+          <div className="mission-create-form">
+            <input type="text" placeholder="Nom de la nouvelle mission" value={newMissionName} onChange={(event) => setNewMissionName(event.target.value)} />
+            <input type="datetime-local" value={newMissionDate} onChange={(event) => setNewMissionDate(event.target.value)} />
+            <button onClick={createMission} disabled={creatingMission || !newMissionName.trim()}>
+              {creatingMission ? 'Création...' : 'Créer mission'}
+            </button>
+            {createStatus ? <span className="create-status">{createStatus}</span> : null}
+          </div>
+        ) : null}
         {error ? <div className="mission-map-error">{error}</div> : null}
       </div>
 
@@ -262,12 +312,25 @@ export function MissionMap() {
                 <ul className="upload-errors">{uploadErrors.map((message, index) => <li key={index}>{message}</li>)}</ul>
               ) : null}
             </div>
-            <div className="analysis-form">
-              <button onClick={triggerAnalysis} disabled={analyzing || !missionId.trim()}>
-                {analyzing ? 'Analyse en cours...' : 'Analyser avec IA'}
-              </button>
-              {analysisStatus ? <p className="analysis-status">{analysisStatus}</p> : null}
-            </div>
+            {isAdmin ? (
+              <>
+                <div className="assignment-form">
+                  <label htmlFor="mission-assignee">Collaborateur affecté</label>
+                  <select id="mission-assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
+                    <option value="">Sélectionner un collaborateur</option>
+                    {collaborators.map((collaborator) => <option key={collaborator.id} value={collaborator.id}>{collaborator.first_name || collaborator.last_name ? `${collaborator.first_name ?? ''} ${collaborator.last_name ?? ''}`.trim() : collaborator.email}</option>)}
+                  </select>
+                  <button onClick={assignCollaborator} disabled={!assigneeId}>Affecter la mission</button>
+                  {assignmentStatus ? <p className="analysis-status">{assignmentStatus}</p> : null}
+                </div>
+                <div className="analysis-form">
+                  <button onClick={triggerAnalysis} disabled={analyzing || !missionId.trim()}>
+                    {analyzing ? 'Analyse en cours...' : 'Analyser avec IA'}
+                  </button>
+                  {analysisStatus ? <p className="analysis-status">{analysisStatus}</p> : null}
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="mission-photo-card">
