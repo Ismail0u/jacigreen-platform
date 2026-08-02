@@ -1,9 +1,14 @@
+import time
+
 import pytest
-from fastapi import status
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
 from app.schemas.auth import ChangePasswordRequest
+
+client = TestClient(app)
 
 
 @pytest.mark.asyncio
@@ -11,28 +16,23 @@ async def test_login_rate_limit_is_enforced():
     from app.api.v1.routes import auth as auth_routes
 
     auth_routes.login_attempts.clear()
-    valid_email = "demo@jacigreen.com"
+
+    email = "demo@jacigreen.com"
 
     for _ in range(5):
-        try:
-            auth_routes.check_login_rate_limit(valid_email)
-        except Exception:
-            pytest.fail("Rate limiter should not block before threshold is reached")
+        auth_routes.login_attempts[email].append(time.monotonic())
 
-    with pytest.raises(Exception):
-        auth_routes.check_login_rate_limit(valid_email)
+    with pytest.raises(HTTPException):
+        auth_routes.check_login_rate_limit(email)
 
 
-@pytest.mark.asyncio
-async def test_security_headers_are_present_on_response():
-    client = app.test_client()
+def test_security_headers_are_present_on_response():
     response = client.get("/health")
 
-    assert response.status_code in {200, 500}
-    if response.status_code == 200:
-        assert "x-content-type-options" in response.headers
-        assert "x-frame-options" in response.headers
-        assert "referrer-policy" in response.headers
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "referrer-policy" in response.headers
 
 
 def test_password_policy_requires_strong_passwords():
