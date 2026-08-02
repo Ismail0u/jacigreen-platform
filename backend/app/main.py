@@ -1,7 +1,9 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -22,11 +24,19 @@ app = FastAPI(
     title="JACIGREEN DroneSurveillance API",
     description="API de surveillance drone et détection de plantes envahissantes",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 install_error_handlers(app)
 
+allowed_hosts = [host.strip() for host in settings.ALLOWED_HOSTS.split(",") if host.strip()]
+if not allowed_hosts:
+    allowed_hosts = ["localhost", "127.0.0.1", "0.0.0.0"]
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=allowed_hosts,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()],
@@ -34,6 +44,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    if settings.ENVIRONMENT.lower() in {"prod", "production", "live"}:
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        if forwarded_proto == "http" and request.url.scheme == "http":
+            redirect_url = request.url.replace(scheme="https")
+            return JSONResponse(status_code=308, content={"detail": "HTTPS required"}, headers={"Location": str(redirect_url)})
+
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self)")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
+    return response
+
 
 storage_path = Path(__file__).resolve().parents[1] / "storage"
 app.mount("/storage", StaticFiles(directory=str(storage_path)), name="storage")

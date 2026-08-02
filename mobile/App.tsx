@@ -1,237 +1,223 @@
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Alert, FlatList, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { CameraView, useCameraPermissions } from 'expo-camera'
+import * as Location from 'expo-location'
 
-const DEFAULT_API_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000'
-const apiUrl = DEFAULT_API_URL
-
-interface Mission {
-  id: string
-  name: string
-  description?: string
-  status: string
-  mission_date?: string
-  created_at: string
-  completed_at?: string
-  notes?: string
-}
+import { login, getSession, logout } from './src/services/auth'
+import { fetchMissions } from './src/services/api'
+import { getMissions, initDatabase, saveMissions, savePhoto } from './src/services/database'
+import { syncPhotos } from './src/services/sync'
+import type { AuthSession, Mission } from './src/types'
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
-  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null)
-  const [loadingMissions, setLoadingMissions] = useState(true)
-  const [loadingMission, setLoadingMission] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [offline, setOffline] = useState(false)
+  const [cameraOpen, setCameraOpen] = useState(false)
 
   useEffect(() => {
-    void fetchMissions()
+    void bootstrap()
   }, [])
 
-  useEffect(() => {
-    if (!selectedMissionId) {
-      setSelectedMission(null)
-      return
-    }
-
-    void fetchMissionDetails(selectedMissionId)
-  }, [selectedMissionId])
-
-  async function fetchMissions() {
-    setLoadingMissions(true)
-    setError(null)
-
+  async function bootstrap() {
     try {
-      const response = await fetch(`${apiUrl}/api/v1/missions`)
-      if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
-      }
-      const data = await response.json()
-      setMissions(data)
-    } catch (err) {
-      setError('Impossible de charger la liste des missions. Vérifiez que le backend est démarré.')
+      await initDatabase()
+      const storedSession = await getSession()
+      setSession(storedSession)
+      if (storedSession) await refreshMissions(storedSession)
+    } catch {
+      Alert.alert('Initialisation impossible', 'Les données locales ne peuvent pas être ouvertes.')
     } finally {
-      setLoadingMissions(false)
+      setLoading(false)
     }
   }
 
-  async function fetchMissionDetails(missionId: string) {
-    setLoadingMission(true)
-    setError(null)
-
+  async function refreshMissions(activeSession = session) {
+    if (!activeSession) return
     try {
-      const response = await fetch(`${apiUrl}/api/v1/missions/${missionId}`)
-      if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
-      }
-      const data = await response.json()
-      setSelectedMission(data)
-    } catch (err) {
-      setError('Impossible de charger les détails de la mission.')
-      setSelectedMission(null)
-    } finally {
-      setLoadingMission(false)
+      const remoteMissions = await fetchMissions(activeSession)
+      await saveMissions(remoteMissions)
+      setMissions(remoteMissions)
+      setOffline(false)
+    } catch {
+      const cachedMissions = await getMissions()
+      setMissions(cachedMissions)
+      setOffline(true)
+      if (!cachedMissions.length) Alert.alert('Hors connexion', 'Aucune mission n’a encore été synchronisée sur cet appareil.')
     }
+  }
+
+  async function handleLogin(email: string, password: string) {
+    const nextSession = await login(email, password)
+    setSession(nextSession)
+    await refreshMissions(nextSession)
+  }
+
+  async function handleSync() {
+    if (!session) return
+    setSyncing(true)
+    try {
+      const result = await syncPhotos(session, selectedMission?.id)
+      await refreshMissions(session)
+      Alert.alert('Synchronisation terminée', `${result.uploaded} photo(s) envoyée(s), ${result.failed} en attente.`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  if (loading) return <LoadingScreen />
+  if (!session) return <LoginScreen onLogin={handleLogin} />
+  if (cameraOpen && selectedMission) {
+    return <CaptureScreen mission={selectedMission} onClose={() => setCameraOpen(false)} />
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>JACIGREEN Mobile</Text>
-      <Text style={styles.subtitle}>Prototype Expo / API mission</Text>
-
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      {loadingMissions ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text style={styles.loadingText}>Chargement des missions…</Text>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>JACIGREEN</Text>
+          <Text style={styles.subtitle}>{offline ? 'Mode hors ligne — cache local' : 'Missions synchronisées'}</Text>
         </View>
-      ) : (
-        <FlatList
-          data={missions}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <Pressable
-              style={[styles.missionCard, selectedMissionId === item.id && styles.missionCardActive]}
-              onPress={() => setSelectedMissionId(item.id)}
-            >
-              <Text style={styles.missionName}>{item.name}</Text>
-              <Text style={styles.missionSubtitle}>{item.status}</Text>
-            </Pressable>
-          )}
-          ListEmptyComponent={<Text style={styles.emptyText}>Aucune mission disponible</Text>}
-        />
-      )}
+        <TouchableOpacity onPress={() => void logout().then(() => setSession(null))} style={styles.logoutButton}>
+          <Text style={styles.logoutText}>Quitter</Text>
+        </TouchableOpacity>
+      </View>
 
-      <View style={styles.detailsContainer}>
-        <Text style={styles.detailsTitle}>Détails de la mission</Text>
-        {loadingMission ? (
-          <ActivityIndicator size="small" color="#2563eb" />
-        ) : selectedMission ? (
-          <ScrollView>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Nom</Text>
-              <Text style={styles.detailValue}>{selectedMission.name}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Statut</Text>
-              <Text style={styles.detailValue}>{selectedMission.status}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Date</Text>
-              <Text style={styles.detailValue}>{selectedMission.mission_date ?? 'Non définie'}</Text>
-            </View>
-            {selectedMission.description ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Description</Text>
-                <Text style={styles.detailValue}>{selectedMission.description}</Text>
-              </View>
-            ) : null}
-            {selectedMission.notes ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Notes</Text>
-                <Text style={styles.detailValue}>{selectedMission.notes}</Text>
-              </View>
-            ) : null}
-          </ScrollView>
-        ) : (
-          <Text style={styles.emptyText}>Sélectionnez une mission pour afficher les détails.</Text>
+      <View style={styles.actions}>
+        <ActionButton label="Actualiser" onPress={() => void refreshMissions()} />
+        <ActionButton label={syncing ? 'Envoi…' : 'Synchroniser'} disabled={syncing} onPress={() => void handleSync()} />
+      </View>
+
+      <FlatList
+        data={missions}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <Pressable style={[styles.card, selectedMission?.id === item.id && styles.cardSelected]} onPress={() => setSelectedMission(item)}>
+            <Text style={styles.cardTitle}>{item.name}</Text>
+            <Text style={styles.status}>{item.status}</Text>
+            {item.mission_date ? <Text style={styles.cardDate}>{new Date(item.mission_date).toLocaleDateString('fr-FR')}</Text> : null}
+          </Pressable>
         )}
+        ListEmptyComponent={<Text style={styles.empty}>Aucune mission disponible.</Text>}
+      />
+
+      <View style={styles.details}>
+        {selectedMission ? (
+          <>
+            <Text style={styles.detailsTitle}>{selectedMission.name}</Text>
+            <Text style={styles.detailsText}>{selectedMission.description || 'Aucune description.'}</Text>
+            <ActionButton label="Prendre une photo GPS" onPress={() => setCameraOpen(true)} />
+          </>
+        ) : <Text style={styles.empty}>Sélectionnez une mission pour capturer des photos.</Text>}
       </View>
     </SafeAreaView>
   )
 }
 
+function LoginScreen({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit() {
+    setSubmitting(true)
+    try {
+      await onLogin(email.trim(), password)
+    } catch (error) {
+      Alert.alert('Connexion impossible', error instanceof Error ? error.message : 'Veuillez réessayer.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, styles.login]}>
+      <Text style={styles.title}>JACIGREEN</Text>
+      <Text style={styles.subtitle}>Accès terrain sécurisé</Text>
+      <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" placeholder="Adresse e-mail" value={email} onChangeText={setEmail} />
+      <TextInput style={styles.input} secureTextEntry placeholder="Mot de passe" value={password} onChangeText={setPassword} />
+      <ActionButton label={submitting ? 'Connexion…' : 'Se connecter'} disabled={submitting || !email || !password} onPress={() => void submit()} />
+    </SafeAreaView>
+  )
+}
+
+function CaptureScreen({ mission, onClose }: { mission: Mission; onClose: () => void }) {
+  const camera = useRef<CameraView>(null)
+  const [permission, requestPermission] = useCameraPermissions()
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  async function capture() {
+    if (!camera.current) return
+    setSaving(true)
+    try {
+      const locationPermission = await Location.requestForegroundPermissionsAsync()
+      if (locationPermission.status !== 'granted') throw new Error('La permission GPS est nécessaire pour cette photo.')
+      const [photo, location] = await Promise.all([
+        camera.current.takePictureAsync({ quality: 0.8 }),
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      ])
+      await savePhoto({
+        mission_id: mission.id,
+        filename: `jacigreen_${Date.now()}.jpg`,
+        uri: photo.uri,
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        altitude_m: location.coords.altitude,
+      })
+      setPreview(photo.uri)
+      Alert.alert('Photo enregistrée', 'Elle sera envoyée lors de la prochaine synchronisation.')
+    } catch (error) {
+      Alert.alert('Capture impossible', error instanceof Error ? error.message : 'Veuillez réessayer.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!permission) return <LoadingScreen />
+  if (!permission.granted) {
+    return <SafeAreaView style={[styles.container, styles.login]}><Text style={styles.empty}>L’accès à la caméra est nécessaire.</Text><ActionButton label="Autoriser la caméra" onPress={() => void requestPermission()} /></SafeAreaView>
+  }
+
+  return (
+    <View style={styles.cameraContainer}>
+      <CameraView ref={camera} style={styles.camera} facing="back" />
+      {preview ? <Image source={{ uri: preview }} style={styles.preview} /> : null}
+      <View style={styles.cameraControls}>
+        <ActionButton label="Retour" onPress={onClose} />
+        <ActionButton label={saving ? 'Enregistrement…' : 'Capturer + GPS'} disabled={saving} onPress={() => void capture()} />
+      </View>
+    </View>
+  )
+}
+
+function LoadingScreen() {
+  return <SafeAreaView style={[styles.container, styles.center]}><ActivityIndicator size="large" color="#157a45" /><Text style={styles.subtitle}>Chargement…</Text></SafeAreaView>
+}
+
+function ActionButton({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+  return <TouchableOpacity style={[styles.button, disabled && styles.buttonDisabled]} disabled={disabled} onPress={onPress}><Text style={styles.buttonText}>{label}</Text></TouchableOpacity>
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 20,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 16,
-    color: '#475569',
-    marginBottom: 20,
-  },
-  loader: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#475569',
-  },
-  errorText: {
-    color: '#b91c1c',
-    marginBottom: 16,
-  },
-  list: {
-    paddingBottom: 16,
-  },
-  missionCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-  },
-  missionCardActive: {
-    borderColor: '#2563eb',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  missionName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  missionSubtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#64748b',
-  },
-  emptyText: {
-    padding: 16,
-    color: '#475569',
-  },
-  detailsContainer: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    flex: 1,
-  },
-  detailsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#111827',
-  },
-  detailRow: {
-    marginBottom: 12,
-  },
-  detailLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    color: '#64748b',
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 15,
-    color: '#111827',
-  },
+  container: { flex: 1, backgroundColor: '#f6faf7', padding: 20 },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  login: { justifyContent: 'center', gap: 14 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  title: { color: '#125c35', fontSize: 28, fontWeight: '800', letterSpacing: 1 },
+  subtitle: { color: '#5b6b60', marginTop: 4 },
+  logoutButton: { padding: 10 }, logoutText: { color: '#b42318', fontWeight: '700' },
+  actions: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  button: { flexGrow: 1, backgroundColor: '#157a45', borderRadius: 10, padding: 13, alignItems: 'center', marginTop: 8 },
+  buttonDisabled: { opacity: 0.55 }, buttonText: { color: '#fff', fontWeight: '700' },
+  list: { paddingBottom: 8 }, card: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginVertical: 5, borderWidth: 1, borderColor: '#dbe8df' },
+  cardSelected: { borderColor: '#157a45', borderWidth: 2 }, cardTitle: { fontSize: 16, fontWeight: '700', color: '#193125' },
+  status: { color: '#157a45', textTransform: 'capitalize', marginTop: 4 }, cardDate: { color: '#68756d', marginTop: 4 },
+  details: { backgroundColor: '#e8f3ec', borderRadius: 12, padding: 16, minHeight: 132 }, detailsTitle: { fontWeight: '800', fontSize: 17, color: '#193125' }, detailsText: { color: '#405448', marginTop: 5 },
+  empty: { color: '#5b6b60', textAlign: 'center', padding: 16 }, input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd9d0', borderRadius: 10, padding: 13 },
+  cameraContainer: { flex: 1, backgroundColor: '#000' }, camera: { flex: 1 }, cameraControls: { padding: 18, backgroundColor: '#10271a', flexDirection: 'row', gap: 10 }, preview: { position: 'absolute', top: 56, right: 20, width: 76, height: 104, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },
 })

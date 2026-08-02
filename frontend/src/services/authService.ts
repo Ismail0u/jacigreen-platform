@@ -8,6 +8,7 @@ export interface AuthToken {
   refresh_token: string
   token_type: string
   expires_in: number
+  requires_password_change?: boolean
 }
 
 export interface User {
@@ -50,13 +51,33 @@ export class AuthService {
     } catch (error) {
       throw new Error(getApiErrorMessage(error, 'Connexion impossible. Vérifiez le serveur et vos identifiants.'), { cause: error })
     }
+
     this.setToken(response.data.access_token)
+    if (response.data.requires_password_change) {
+      return response.data
+    }
+
     try {
       await this.fetchCurrentUser()
     } catch (error) {
       this.logout()
       throw new Error(getApiErrorMessage(error, 'Votre session n’a pas pu être initialisée.'), { cause: error })
     }
+    return response.data
+  }
+
+  async changePassword(payload: { old_password: string; new_password: string; confirm_password: string }): Promise<{ message: string }> {
+    const response = await axios.post<{ message: string }>(`${apiUrl}/api/v1/auth/change-password`, payload, {
+      headers: this.getAuthHeader(),
+    })
+
+    try {
+      await this.fetchCurrentUser()
+    } catch (error) {
+      this.logout()
+      throw new Error(getApiErrorMessage(error, 'La réinitialisation du mot de passe a bien été reçue mais votre session est inaccessible.'), { cause: error })
+    }
+
     return response.data
   }
 

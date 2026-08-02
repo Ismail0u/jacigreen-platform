@@ -1,29 +1,45 @@
 """Pydantic schemas for authentication endpoints."""
 
-from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LoginRequest(BaseModel):
     """Login request with email and password."""
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8)
 
 
 class ChangePasswordRequest(BaseModel):
     """Change password request."""
-    old_password: str = Field(..., min_length=6)
+    old_password: str = Field(..., min_length=8)
     new_password: str = Field(..., min_length=8)
     confirm_password: str = Field(..., min_length=8)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must contain at least 8 characters")
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(char.islower() for char in value):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain at least one number")
+        if not any(not char.isalnum() for char in value):
+            raise ValueError("Password must contain at least one special character")
+        return value
 
     class Config:
         json_schema_extra = {
             "example": {
-                "old_password": "currentPass123",
-                "new_password": "newSecurePass2026",
-                "confirm_password": "newSecurePass2026"
+                "old_password": "CurrentPass123!",
+                "new_password": "NewSecurePass2026!",
+                "confirm_password": "NewSecurePass2026!"
             }
         }
 
@@ -34,6 +50,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
+    requires_password_change: bool = False
 
 
 class RefreshTokenRequest(BaseModel):

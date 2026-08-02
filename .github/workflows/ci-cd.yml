@@ -1,0 +1,95 @@
+name: JACIGREEN CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: test-secret-key
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/jacigreen_test
+      REDIS_URL: redis://localhost:6379/0
+      ALLOWED_ORIGINS: http://localhost:5173
+      DEBUG: 'true'
+      ENVIRONMENT: test
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: jacigreen_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d jacigreen_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest -q
+      - name: Security dependency scan
+        run: |
+          python -m pip install safety
+          safety check -r backend/requirements.txt --full-report || true
+      - name: Run Bandit
+        run: |
+          python -m pip install bandit[toml]
+          bandit -r backend -x backend/.venv -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend packages
+        working-directory: frontend
+        run: npm ci
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Frontend dependency audit
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Semgrep
+        run: python -m pip install semgrep
+      - name: Run Semgrep SAST
+        run: semgrep --config auto --error --quiet . || true
+      - name: CodeQL analysis
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript,python
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
