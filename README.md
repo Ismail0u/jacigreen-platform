@@ -16,6 +16,34 @@ Détection automatique via IA YOLOv8, visualisation temps réel sur carte, sync 
 | **Storage** | Supabase Storage (free) · EXIF extraction |
 | **Auth** | JWT (RS256) · bcrypt password hashing |
 
+##  Audit de progression du projet (Août 2026)
+
+### État actuel
+
+- Backend FastAPI : en place, structure claire, endpoints principaux présents.
+- Authentification : login / refresh / admin user management fonctionnels dans l’API.
+- Frontend React + Vite : interface de base en place, navigation et gestion de missions visible.
+- Mobile Expo : base du projet présente, flux de synchronisation de photo prévu.
+- Base de données locale : Postgres + Redis via Docker fonctionnent comme environnement de dev.
+- CI/CD : pipeline GitHub Actions ajouté pour tests backend, build frontend et scan Bandit.
+- Hébergement gratuit : architecture recommandée définie pour Vercel + Railway + Supabase.
+
+### Écarts importants par rapport au README
+
+- Le README décrit un état plus "production-ready" que le code actuel ; plusieurs points restent à finaliser avant mise en ligne.
+- La sécurité de production est partiellement prise en compte mais pas totalement : secrets, CORS, headers HTTP, rate-limiting, HTTPS et validation de dépendances restent à verrouiller sur l’environnement réel.
+- Le stockage Supabase n’est pas encore branché en production dans le code de manière complète.
+- L’IA / Celery / détections automatiques sont seulement partiellement intégrées.
+- Le frontend est fonctionnel mais le design, la sécurité front et l’UX production demandent une étape de polish design-system / a11y / conformité.
+
+### Priorité immédiate
+
+1. Finaliser les variables d’environnement de production.
+2. Sécuriser les endpoints et rôles sur l’API.
+3. Brancher le frontend sur un domaine Vercel et le backend sur Railway.
+4. Migrer les données/stockage vers Supabase.
+5. Ajouter le scanning DAST, la surveillance et la couverture de tests de sécurité.
+
 ##  Démarrage Rapide
 
 ### 1. Setup infrastructure locale
