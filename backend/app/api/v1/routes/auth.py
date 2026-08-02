@@ -1,5 +1,7 @@
 """Authentication API routes for login, token management, and password changes."""
 
+import time
+from collections import defaultdict
 from datetime import datetime
 from uuid import UUID
 
@@ -8,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_current_user, require_admin
+from app.core.config import settings
 from app.core.security import (
     hash_password,
     verify_password,
@@ -31,6 +34,25 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+login_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def check_login_rate_limit(email: str) -> None:
+    """Reject repeated login attempts from the same email within the configured window."""
+    if not settings.RATE_LIMIT_ENABLED:
+        return
+
+    key = email.strip().lower()
+    attempts = login_attempts[key]
+    now = time.monotonic()
+    attempts[:] = [ts for ts in attempts if now - ts < settings.LOGIN_RATE_LIMIT_WINDOW]
+
+    if len(attempts) >= settings.LOGIN_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
+
 """Authentication and user management endpoints.
 This module provides endpoints for user login, token management (access and refresh tokens), password changes,
  and admin-only user management operations such as creating, updating, resetting passwords, and deleting users.
@@ -50,13 +72,16 @@ auth/admin/users/{user_id}: Delete user (soft delete by marking as inactive).
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Login with email and password.
-    
+
     On first login, returns tokens but user must change password via /change-password endpoint.
     """
+    check_login_rate_limit(payload.email)
+
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(payload.password, user.password_hash):
+        login_attempts[payload.email.strip().lower()].append(time.monotonic())
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -67,6 +92,8 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+
+    login_attempts.pop(payload.email.strip().lower(), None)
 
     # Update last login
     user.last_login = datetime.utcnow()
@@ -80,6 +107,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=15 * 60,  # 15 minutes in seconds
+        requires_password_change=bool(user.force_password_change),
     )
 
 
@@ -131,6 +159,12 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password and confirm password do not match",
+        )
+
+    if payload.new_password == payload.old_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must differ from the current one",
         )
 
     if not verify_password(payload.old_password, current_user.password_hash):
