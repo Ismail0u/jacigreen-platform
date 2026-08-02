@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GeoJSON, MapContainer, TileLayer } from 'react-leaflet'
 import type { FeatureCollection, GeoJsonObject } from 'geojson'
 import axios from 'axios'
@@ -25,6 +25,28 @@ const DEFAULT_CENTER: [number, number] = [13.5137, 2.1168]
 const DEFAULT_ZOOM = 18
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function resolvePhotoUrl(url?: string): string | undefined {
+  if (!url) return undefined
+  if (/^(https?:|blob:|data:)/i.test(url)) return url
+
+  const base = apiUrl.replace(/\/$/, '')
+  const normalized = url.replace(/^\/+/, '')
+  try {
+    return new URL(`/${normalized}`, base).toString()
+  } catch {
+    return `${base}/${normalized}`
+  }
+}
+
 interface MissionMapProps {
   isAdmin: boolean
 }
@@ -46,6 +68,7 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
   const [detections, setDetections] = useState<FeatureCollection | null>(null)
   const [report, setReport] = useState<MissionReport | null>(null)
   const [selectedPhoto, setSelectedPhoto] = useState<MissionPhotoSelection | null>(null)
+  const [photoLoadError, setPhotoLoadError] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [uploadErrors, setUploadErrors] = useState<string[] | null>(null)
@@ -64,6 +87,10 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
   const [creatingMission, setCreatingMission] = useState(false)
 
   const photoCount = useMemo(() => geojson?.features.length ?? 0, [geojson])
+
+  useEffect(() => {
+    setPhotoLoadError(false)
+  }, [selectedPhoto?.id])
 
   async function loadCollaborators() {
     if (!isAdmin || collaborators.length) return
@@ -351,7 +378,17 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
             {selectedPhoto ? (
               <>
                 <h3>Détail de l’image</h3>
-                {selectedPhoto.storage_url ? <img src={`${apiUrl}${selectedPhoto.storage_url}`} alt={selectedPhoto.filename} /> : null}
+                {selectedPhoto.storage_url && !photoLoadError ? (
+                  <img
+                    src={resolvePhotoUrl(selectedPhoto.storage_url)}
+                    alt={selectedPhoto.filename}
+                    style={{ display: 'block' }}
+                    onError={() => setPhotoLoadError(true)}
+                  />
+                ) : null}
+                {photoLoadError || !selectedPhoto.storage_url ? (
+                  <p className="upload-hint">L’image n’est pas accessible à cette URL. Vérifiez le backend et la configuration VITE_API_URL.</p>
+                ) : null}
                 <p><strong>Nom:</strong> {selectedPhoto.filename}</p>
                 <p><strong>Alt:</strong> {selectedPhoto.altitude_m ?? 'N/A'} m</p>
                 <p><strong>Coordonnées:</strong> {selectedPhoto.latitude?.toFixed(5) ?? 'N/A'}, {selectedPhoto.longitude?.toFixed(5) ?? 'N/A'}</p>
@@ -363,7 +400,12 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
         </div>
       ) : null}
 
-      <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="mission-map-container">
+      <MapContainer
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        className="mission-map-container"
+        style={{ height: '620px', width: '100%' }}
+      >
         <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapAutoFit geojson={geojson} flightpath={flightpath} detections={detections} />
         {flightpath ? <GeoJSON data={flightpath as GeoJsonObject} style={{ color: '#ff7f00', weight: 4, opacity: 0.8 }} /> : null}
@@ -373,13 +415,14 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
             pointToLayer={(_, latlng) => L.marker(latlng)}
             onEachFeature={(feature, layer) => {
               const properties = feature.properties as Record<string, unknown>
-              const title = (properties?.filename as string | undefined) || 'Photo'
+              const title = escapeHtml((properties?.filename as string | undefined) || 'Photo')
               const url = properties?.storage_url as string | undefined
+              const absoluteUrl = resolvePhotoUrl(url)
               const altitude = properties?.altitude_m ?? 'N/A'
               const latitude = feature.geometry.type === 'Point' ? (feature.geometry.coordinates[1] as number | undefined) : undefined
               const longitude = feature.geometry.type === 'Point' ? (feature.geometry.coordinates[0] as number | undefined) : undefined
 
-              const popupContent = `<div><strong>${title}</strong><br/>Alt: ${altitude}m${url ? `<br/><img src="${apiUrl}${url}" alt="photo" style="max-width:220px; margin-top:8px;"/>` : ''}</div>`
+              const popupContent = `<div><strong>${title}</strong><br/>Alt: ${altitude}m${absoluteUrl ? `<br/><img src="${absoluteUrl}" alt="${title}" style="max-width:220px; margin-top:8px;" onerror="this.onerror=null;this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<div style=\'margin-top:8px;color:#64748b;font-size:12px;\'>Image non disponible</div>')"/>` : ''}</div>`
               layer.bindPopup(popupContent)
               layer.on('click', () => {
                 setSelectedPhoto({
