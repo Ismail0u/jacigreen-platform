@@ -3,10 +3,12 @@
     "name": "JACIGREEN Mobile",
     "slug": "jacigreen-mobile",
     "version": "1.0.0",
-    "sdkVersion": "49.0.0",
     "platforms": ["ios", "android", "web"],
     "orientation": "portrait",
-    "plugins": [],
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "Autoriser JACIGREEN à prendre des photos de mission." }],
+      ["expo-location", { "locationWhenInUsePermission": "Autoriser JACIGREEN à enregistrer la position des photos." }]
+    ],
     "assetBundlePatterns": ["**/*"]
   }
 }
