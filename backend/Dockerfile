@@ -1,23 +1,17 @@
-# Utiliser une image officielle Python
 FROM python:3.12-slim
 
-# Définir le répertoire de travail dans le conteneur
 WORKDIR /app
 
-# Installer les dépendances système nécessaires (si besoin pour l'IA/OpenCV/etc.)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Dépendances système pour PostGIS / GDAL
+RUN apt-get update && apt-get install -y \
+    libpq-dev gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copier et installer les requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier le reste du code du backend
 COPY . .
 
-# Exposer le port de l'application
-EXPOSE 8000
-
-# Commande pour lancer l'application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Migrations + démarrage
+CMD alembic upgrade head && \
+    uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
