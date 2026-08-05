@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Supabase (for file storage - optional)
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
-    SUPABASE_STORAGE_BUCKET: str = "photos"
+    SUPABASE_STORAGE_BUCKET: str = "jaci_photo"
 
     # Rate limiting
     RATE_LIMIT_ENABLED: bool = True

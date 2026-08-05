@@ -19,6 +19,8 @@ from app.services.detection_geojson import mission_detections_geojson
 from app.services.exif_service import GpsData, extract_gps
 from app.services.mission_report import build_mission_report_payload
 
+from app.services.storage import upload_photo
+
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
 
@@ -173,8 +175,8 @@ async def upload_mission_photos(
 
     uploaded = []
     errors = []
-    storage_dir = Path(__file__).resolve().parents[4] / "storage" / "photos"
-    storage_dir.mkdir(parents=True, exist_ok=True)
+    #storage_dir = Path(__file__).resolve().parents[4] / "storage" / "photos"
+    #storage_dir.mkdir(parents=True, exist_ok=True)
 
     for file in files:
         if file.content_type not in ALLOWED_TYPES:
@@ -197,9 +199,12 @@ async def upload_mission_photos(
             source = "mobile"
 
         safe_filename = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
-        target_path = storage_dir / safe_filename
-        target_path.write_bytes(content)
-        storage_url = f"/storage/photos/{safe_filename}"
+
+        storage_url = upload_photo(
+            filename=safe_filename,
+            content=content,
+            content_type=file.content_type,
+        )
 
         location = WKTElement(f"POINT({gps.longitude} {gps.latitude})", srid=4326)
 
