@@ -5,38 +5,29 @@ interface StatusToastProps {
   onClose: () => void
 }
 
+const palette: Record<'success' | 'error' | 'info', string> = {
+  success: 'bg-brand-50 border-brand-200 text-brand-700',
+  error: 'bg-red-50 border-red-200 text-red-700',
+  info: 'bg-water-50 border-water-100 text-water-700',
+}
+
 export function StatusToast({ message, type = 'info', visible, onClose }: StatusToastProps) {
   if (!visible || !message) return null
-
-  const palette = {
-    success: { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
-    error: { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
-    info: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  }
-
-  const style = palette[type]
 
   return (
     <div
       role="status"
       aria-live="polite"
-      style={{
-        position: 'fixed',
-        right: 20,
-        bottom: 20,
-        zIndex: 3000,
-        padding: '12px 16px',
-        borderRadius: '12px',
-        background: style.bg,
-        border: `1px solid ${style.border}`,
-        color: style.color,
-        boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
-        maxWidth: 420,
-      }}
+      className={`fixed bottom-5 right-5 z-[3000] max-w-sm rounded-xl border px-4 py-3 shadow-lg ${palette[type]}`}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <span>{message}</span>
-        <button type="button" onClick={onClose} style={{ border: 'none', background: 'transparent', color: style.color, cursor: 'pointer', fontSize: 18 }} aria-label="Fermer le message">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{message}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fermer le message"
+          className="text-lg leading-none opacity-70 hover:opacity-100"
+        >
           ×
         </button>
       </div>

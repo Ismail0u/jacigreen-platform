@@ -98,170 +98,190 @@ export function CollaboratorsPage() {
       setNotice('La mission a été affectée au collaborateur sélectionné.')
       setAssignment({ missionId: '', collaboratorId: '' })
     } catch (error) {
-      setNotice(getApiErrorMessage(error, 'Impossible d’affecter cette mission.'))
+      setNotice(getApiErrorMessage(error, 'Impossible d\u2019affecter cette mission.'))
     }
   }
 
   return (
-    <main className="page-shell collaborator-page">
-      <section className="page-heading">
-        <p className="eyebrow">Administration</p>
-        <h1>Gestion des collaborateurs</h1>
-        <p>Créez les comptes terrain, définissez leurs accès et affectez les missions.</p>
-      </section>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="max-w-2xl">
+        <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Administration</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Gestion des collaborateurs</h1>
+        <p className="mt-1.5 text-sm text-slate-500">
+          Créez les comptes terrain, définissez leurs accès et affectez les missions.
+        </p>
+      </div>
 
       {notice ? (
-        <div className="notice" role="status">
+        <div role="status" className="mt-5 rounded-lg border border-water-100 bg-water-50 px-4 py-2.5 text-sm font-medium text-water-700">
           {notice}
         </div>
       ) : null}
 
       {temporaryPassword ? (
-        <div className="temporary-password" role="alert">
-          <strong>Mot de passe temporaire</strong>
-          <code>{temporaryPassword}</code>
-          <button type="button" onClick={() => setTemporaryPassword(null)}>
-            J’ai noté le mot de passe
+        <div role="alert" className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <strong className="font-semibold">Mot de passe temporaire</strong>
+          <code className="rounded bg-white px-2 py-1 font-mono font-semibold text-amber-700">{temporaryPassword}</code>
+          <button
+            type="button"
+            onClick={() => setTemporaryPassword(null)}
+            className="ml-auto rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-200"
+          >
+            J'ai noté le mot de passe
           </button>
         </div>
       ) : null}
 
-      <section className="management-grid">
-        <form className="panel form-panel" onSubmit={createCollaborator}>
-          <div className="section-header section-header--tight">
-            <div>
-              <p className="eyebrow eyebrow--dark">Personnel</p>
-              <h2>Créer un collaborateur</h2>
-            </div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <form className="card" onSubmit={createCollaborator}>
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Personnel</p>
+          <h2 className="mt-1 text-base font-semibold text-slate-900">Créer un collaborateur</h2>
+
+          <div className="mt-4 grid gap-3.5">
+            <label className="field-label">
+              <span>Prénom</span>
+              <input className="field-input" value={newUser.first_name} onChange={(event) => setNewUser({ ...newUser, first_name: event.target.value })} />
+            </label>
+
+            <label className="field-label">
+              <span>Nom</span>
+              <input className="field-input" value={newUser.last_name} onChange={(event) => setNewUser({ ...newUser, last_name: event.target.value })} />
+            </label>
+
+            <label className="field-label">
+              <span>Email</span>
+              <input className="field-input" required type="email" value={newUser.email} onChange={(event) => setNewUser({ ...newUser, email: event.target.value })} />
+            </label>
+
+            <label className="field-label">
+              <span>Offre</span>
+              <select className="field-input" value={newUser.subscription_tier} onChange={(event) => setNewUser({ ...newUser, subscription_tier: event.target.value })}>
+                {TIERS.map((tier) => (
+                  <option key={tier}>{tier}</option>
+                ))}
+              </select>
+            </label>
+
+            <button type="submit" className="btn-primary mt-1">
+              Créer le compte
+            </button>
           </div>
-
-          <label>
-            <span>Prénom</span>
-            <input value={newUser.first_name} onChange={(event) => setNewUser({ ...newUser, first_name: event.target.value })} />
-          </label>
-
-          <label>
-            <span>Nom</span>
-            <input value={newUser.last_name} onChange={(event) => setNewUser({ ...newUser, last_name: event.target.value })} />
-          </label>
-
-          <label>
-            <span>Email</span>
-            <input required type="email" value={newUser.email} onChange={(event) => setNewUser({ ...newUser, email: event.target.value })} />
-          </label>
-
-          <label>
-            <span>Offre</span>
-            <select value={newUser.subscription_tier} onChange={(event) => setNewUser({ ...newUser, subscription_tier: event.target.value })}>
-              {TIERS.map((tier) => (
-                <option key={tier}>{tier}</option>
-              ))}
-            </select>
-          </label>
-
-          <button type="submit" className="primary-button">
-            Créer le compte
-          </button>
         </form>
 
-        <form className="panel form-panel" onSubmit={assignMission}>
-          <div className="section-header section-header--tight">
-            <div>
-              <p className="eyebrow eyebrow--dark">Affectation</p>
-              <h2>Assigner une mission</h2>
-            </div>
-          </div>
+        <form className="card" onSubmit={assignMission}>
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Affectation</p>
+          <h2 className="mt-1 text-base font-semibold text-slate-900">Assigner une mission</h2>
 
-          <label>
-            <span>Mission</span>
-            <select required value={assignment.missionId} onChange={(event) => setAssignment({ ...assignment, missionId: event.target.value })}>
-              <option value="">Sélectionner</option>
-              {missions.map((mission) => (
-                <option key={mission.id} value={mission.id}>
-                  {mission.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Collaborateur</span>
-            <select required value={assignment.collaboratorId} onChange={(event) => setAssignment({ ...assignment, collaboratorId: event.target.value })}>
-              <option value="">Sélectionner</option>
-              {collaborators
-                .filter((user) => user.is_active)
-                .map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.first_name || user.last_name ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : user.email}
+          <div className="mt-4 grid gap-3.5">
+            <label className="field-label">
+              <span>Mission</span>
+              <select className="field-input" required value={assignment.missionId} onChange={(event) => setAssignment({ ...assignment, missionId: event.target.value })}>
+                <option value="">Sélectionner</option>
+                {missions.map((mission) => (
+                  <option key={mission.id} value={mission.id}>
+                    {mission.name}
                   </option>
                 ))}
-            </select>
-          </label>
+              </select>
+            </label>
 
-          <button type="submit" className="primary-button">
-            Affecter la mission
-          </button>
-        </form>
-      </section>
+            <label className="field-label">
+              <span>Collaborateur</span>
+              <select className="field-input" required value={assignment.collaboratorId} onChange={(event) => setAssignment({ ...assignment, collaboratorId: event.target.value })}>
+                <option value="">Sélectionner</option>
+                {collaborators
+                  .filter((user) => user.is_active)
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.first_name || user.last_name ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : user.email}
+                    </option>
+                  ))}
+              </select>
+            </label>
 
-      <section className="panel collaborators-panel">
-        <div className="section-title">
-          <div>
-            <p className="eyebrow eyebrow--dark">Équipe</p>
-            <h2>Collaborateurs</h2>
+            <button type="submit" className="btn-primary mt-1">
+              Affecter la mission
+            </button>
           </div>
-          <button type="button" className="secondary-button" onClick={() => void loadData()}>
+        </form>
+      </div>
+
+      <section className="card mt-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Équipe</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-900">Collaborateurs</h2>
+          </div>
+          <button type="button" className="btn-secondary" onClick={() => void loadData()}>
             Actualiser
           </button>
         </div>
 
         {loading ? (
-          <p className="empty-state">Chargement des collaborateurs…</p>
+          <p className="mt-6 text-sm text-slate-400">Chargement des collaborateurs…</p>
         ) : (
-          <div className="collaborator-list">
+          <div className="mt-5 grid gap-3">
             {collaborators.map((user) => (
-              <article className="collaborator-card" key={user.id}>
-                <div className="collaborator-card__identity">
-                  <div className="avatar-badge" aria-hidden="true">
+              <article
+                key={user.id}
+                className={
+                  'flex flex-col gap-4 rounded-xl border-l-4 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between ' +
+                  (user.is_active ? 'border-brand-500' : 'border-slate-300')
+                }
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-100 font-bold text-brand-700">
                     {(user.first_name?.[0] ?? user.email[0] ?? 'C').toUpperCase()}
                   </div>
-                  <div>
-                    <h3>{user.first_name || user.last_name ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : user.email}</h3>
-                    <p>{user.email}</p>
-                    <div className="status-row">
-                      <span className={user.is_active ? 'badge badge-success' : 'badge badge-muted'}>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-slate-900">
+                      {user.first_name || user.last_name ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : user.email}
+                    </h3>
+                    <p className="truncate text-sm text-slate-500">{user.email}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span className={user.is_active ? 'badge bg-brand-100 text-brand-700' : 'badge bg-slate-200 text-slate-500'}>
                         {user.is_active ? 'Actif' : 'Inactif'}
                       </span>
-                      {user.force_password_change ? <span className="badge badge-warning">Mot de passe à modifier</span> : null}
+                      {user.force_password_change ? (
+                        <span className="badge bg-amber-100 text-amber-700">Mot de passe à modifier</span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
 
-                <div className="collaborator-actions">
-                  <label>
+                <div className="grid grid-cols-2 gap-2 sm:min-w-[380px]">
+                  <label className="field-label">
                     <span>Offre</span>
-                    <select value={user.subscription_tier} onChange={(event) => void updateCollaborator(user, { subscription_tier: event.target.value })}>
+                    <select
+                      className="field-input"
+                      value={user.subscription_tier}
+                      onChange={(event) => void updateCollaborator(user, { subscription_tier: event.target.value })}
+                    >
                       {TIERS.map((tier) => (
                         <option key={tier}>{tier}</option>
                       ))}
                     </select>
                   </label>
 
-                  <label>
+                  <label className="field-label">
                     <span>Statut</span>
-                    <select value={user.subscription_status} onChange={(event) => void updateCollaborator(user, { subscription_status: event.target.value })}>
+                    <select
+                      className="field-input"
+                      value={user.subscription_status}
+                      onChange={(event) => void updateCollaborator(user, { subscription_status: event.target.value })}
+                    >
                       {SUBSCRIPTION_STATUSES.map((state) => (
                         <option key={state}>{state}</option>
                       ))}
                     </select>
                   </label>
 
-                  <button type="button" className="secondary-button" onClick={() => void updateCollaborator(user, { is_active: !user.is_active })}>
+                  <button type="button" className="btn-secondary col-span-1" onClick={() => void updateCollaborator(user, { is_active: !user.is_active })}>
                     {user.is_active ? 'Désactiver' : 'Réactiver'}
                   </button>
 
-                  <button type="button" className="secondary-button" onClick={() => void resetPassword(user)}>
-                    Réinitialiser le mot de passe
+                  <button type="button" className="btn-secondary col-span-1" onClick={() => void resetPassword(user)}>
+                    Réinitialiser
                   </button>
                 </div>
               </article>
@@ -269,6 +289,6 @@ export function CollaboratorsPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   )
 }

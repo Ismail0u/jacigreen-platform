@@ -285,117 +285,182 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
   }
 
   return (
-    <div className="mission-map-wrapper">
-      <div className="mission-map-header">
-        <div>
-          <h1>JACIGREEN — Hub de missions</h1>
-          <p className="upload-hint">Suivi terrain, cartes interactives et rapport automatisé.</p>
+    <div className="mx-auto grid max-w-7xl gap-5 px-4 py-8 sm:px-6 sm:py-10">
+      <div className="card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">JACIGREEN — Hub de missions</h1>
+            <p className="mt-1 text-sm text-slate-500">Suivi terrain, cartes interactives et rapport automatisé.</p>
+          </div>
         </div>
-        <div className="mission-map-controls">
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <MissionSelector value={missionId} onChange={setMissionId} refreshKey={missionsRefreshKey} />
-          <button onClick={loadMission} disabled={loading || !missionId.trim()}>
+          <button className="btn-primary h-10" onClick={loadMission} disabled={loading || !missionId.trim()}>
             {loading ? 'Chargement…' : 'Charger'}
           </button>
         </div>
+
         {isAdmin ? (
-          <div className="mission-create-form">
-            <input type="text" placeholder="Nom de la nouvelle mission" value={newMissionName} onChange={(event) => setNewMissionName(event.target.value)} />
-            <input type="datetime-local" value={newMissionDate} onChange={(event) => setNewMissionDate(event.target.value)} />
-            <button onClick={createMission} disabled={creatingMission || !newMissionName.trim()}>
+          <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+            <label className="field-label">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Nouvelle mission</span>
+              <input
+                type="text"
+                className="field-input min-w-[220px]"
+                placeholder="Nom de la nouvelle mission"
+                value={newMissionName}
+                onChange={(event) => setNewMissionName(event.target.value)}
+              />
+            </label>
+            <label className="field-label">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Date</span>
+              <input
+                type="datetime-local"
+                className="field-input min-w-[200px]"
+                value={newMissionDate}
+                onChange={(event) => setNewMissionDate(event.target.value)}
+              />
+            </label>
+            <button className="btn-secondary h-10" onClick={createMission} disabled={creatingMission || !newMissionName.trim()}>
               {creatingMission ? 'Création...' : 'Créer mission'}
             </button>
-            {createStatus ? <span className="create-status">{createStatus}</span> : null}
+            {createStatus ? <span className="text-sm font-medium text-brand-700">{createStatus}</span> : null}
           </div>
         ) : null}
-        {error ? <div className="mission-map-error">{error}</div> : null}
+
+        {error ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
       </div>
 
       {missionInfo ? (
-        <div className="mission-info-card">
+        <div className="card flex flex-wrap items-center justify-between gap-4 border-l-4 border-brand-500">
           <div>
-            <strong>{missionInfo.name}</strong>
-            <div className="mission-info-pill">Statut : {missionInfo.status}</div>
+            <strong className="text-base font-semibold text-slate-900">{missionInfo.name}</strong>
+            <div className="mt-1 inline-flex items-center rounded-full bg-water-50 px-2.5 py-1 text-xs font-semibold text-water-700">
+              Statut : {missionInfo.status}
+            </div>
           </div>
-          <div className="mission-map-controls">
-            <span className="mission-info-pill">Photos : {photoCount}</span>
-            <span className="mission-info-pill">Détections : {detections?.features.length ?? 0}</span>
+          <div className="flex flex-wrap gap-2">
+            <span className="badge bg-slate-100 text-slate-600">Photos : {photoCount}</span>
+            <span className="badge bg-slate-100 text-slate-600">Détections : {detections?.features.length ?? 0}</span>
           </div>
         </div>
       ) : null}
 
       {missionInfo ? (
-        <div className="mission-panel-grid">
-          <div className="mission-upload-panel">
-            <MissionDetails mission={missionInfo} />
-            <div className="upload-form">
-              <label htmlFor="photo-upload">Ajouter des photos</label>
-              <input id="photo-upload" type="file" multiple accept="image/jpeg,image/png,image/tiff" onChange={handleFileChange} />
-              <button onClick={uploadPhotos} disabled={uploading || !selectedFiles?.length}>
+        <div className="grid gap-5 lg:grid-cols-[minmax(320px,420px)_1fr]">
+          <div className="grid content-start gap-5">
+            <div className="card">
+              <MissionDetails mission={missionInfo} />
+            </div>
+
+            <div className="card grid gap-3">
+              <label htmlFor="photo-upload" className="text-sm font-semibold text-slate-900">
+                Ajouter des photos
+              </label>
+              <input
+                id="photo-upload"
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/tiff"
+                onChange={handleFileChange}
+                className="text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-100"
+              />
+              <button className="btn-primary" onClick={uploadPhotos} disabled={uploading || !selectedFiles?.length}>
                 {uploading ? 'Envoi en cours…' : 'Uploader les photos'}
               </button>
-              <p className="upload-hint">Les images doivent contenir des coordonnées GPS EXIF pour être placées sur la carte.</p>
-              {uploadStatus ? <p className="upload-status">{uploadStatus}</p> : null}
+              <p className="text-xs text-slate-400">Les images doivent contenir des coordonnées GPS EXIF pour être placées sur la carte.</p>
+              {uploadStatus ? <p className="text-sm font-medium text-brand-700">{uploadStatus}</p> : null}
               {uploadErrors?.length ? (
-                <ul className="upload-errors">{uploadErrors.map((message, index) => <li key={index}>{message}</li>)}</ul>
+                <ul className="grid gap-1 pl-4 text-sm text-red-600">
+                  {uploadErrors.map((message, index) => <li key={index} className="list-disc">{message}</li>)}
+                </ul>
               ) : null}
             </div>
+
             {isAdmin ? (
               <>
-                <div className="assignment-form">
-                  <label htmlFor="mission-assignee">Collaborateur affecté</label>
-                  <select id="mission-assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
+                <div className="card grid gap-3">
+                  <label htmlFor="mission-assignee" className="text-sm font-semibold text-slate-900">
+                    Collaborateur affecté
+                  </label>
+                  <select
+                    id="mission-assignee"
+                    className="field-input"
+                    value={assigneeId}
+                    onChange={(event) => setAssigneeId(event.target.value)}
+                  >
                     <option value="">Sélectionner un collaborateur</option>
-                    {collaborators.map((collaborator) => <option key={collaborator.id} value={collaborator.id}>{collaborator.first_name || collaborator.last_name ? `${collaborator.first_name ?? ''} ${collaborator.last_name ?? ''}`.trim() : collaborator.email}</option>)}
+                    {collaborators.map((collaborator) => (
+                      <option key={collaborator.id} value={collaborator.id}>
+                        {collaborator.first_name || collaborator.last_name
+                          ? `${collaborator.first_name ?? ''} ${collaborator.last_name ?? ''}`.trim()
+                          : collaborator.email}
+                      </option>
+                    ))}
                   </select>
-                  <button onClick={assignCollaborator} disabled={!assigneeId}>Affecter la mission</button>
-                  {assignmentStatus ? <p className="analysis-status">{assignmentStatus}</p> : null}
+                  <button className="btn-secondary" onClick={assignCollaborator} disabled={!assigneeId}>
+                    Affecter la mission
+                  </button>
+                  {assignmentStatus ? <p className="text-sm font-medium text-water-700">{assignmentStatus}</p> : null}
                 </div>
-                <div className="analysis-form">
-                  <button onClick={triggerAnalysis} disabled={analyzing || !missionId.trim()}>
+
+                <div className="card grid gap-3">
+                  <button className="btn-primary" onClick={triggerAnalysis} disabled={analyzing || !missionId.trim()}>
                     {analyzing ? 'Analyse en cours...' : 'Analyser avec IA'}
                   </button>
-                  {analysisStatus ? <p className="analysis-status">{analysisStatus}</p> : null}
+                  {analysisStatus ? <p className="text-sm font-medium text-water-700">{analysisStatus}</p> : null}
                 </div>
               </>
             ) : null}
           </div>
 
-          <div className="mission-photo-card">
+          <div className="grid content-start gap-5">
             {report ? (
-              <div className="mission-report-card">
-                <h3>Rapport de mission</h3>
-                <p><strong>Mission:</strong> {report.mission_name}</p>
-                <p><strong>Statut:</strong> {report.status}</p>
-                <p><strong>Photos:</strong> {report.photo_count}</p>
-                <p><strong>Détections:</strong> {report.detection_count}</p>
-                <p><strong>Haute confiance:</strong> {report.high_confidence_count}</p>
-                <p><strong>Moyenne confiance:</strong> {report.medium_confidence_count}</p>
-                <p><strong>Faible confiance:</strong> {report.low_confidence_count}</p>
-                <p><strong>Résumé:</strong> {report.summary.confidence} · {report.summary.coverage}</p>
+              <div className="card grid gap-1.5">
+                <h3 className="text-sm font-semibold text-slate-900">Rapport de mission</h3>
+                <p className="text-sm text-slate-600"><strong className="font-semibold text-slate-800">Mission:</strong> {report.mission_name}</p>
+                <p className="text-sm text-slate-600"><strong className="font-semibold text-slate-800">Statut:</strong> {report.status}</p>
+                <p className="text-sm text-slate-600"><strong className="font-semibold text-slate-800">Photos:</strong> {report.photo_count}</p>
+                <p className="text-sm text-slate-600"><strong className="font-semibold text-slate-800">Détections:</strong> {report.detection_count}</p>
+                <p className="text-sm text-slate-600 border-l-2 border-brand-500 pl-2"><strong className="font-semibold text-slate-800">Haute confiance:</strong> {report.high_confidence_count}</p>
+                <p className="text-sm text-slate-600 border-l-2 border-amber-500 pl-2"><strong className="font-semibold text-slate-800">Moyenne confiance:</strong> {report.medium_confidence_count}</p>
+                <p className="text-sm text-slate-600 border-l-2 border-red-400 pl-2"><strong className="font-semibold text-slate-800">Faible confiance:</strong> {report.low_confidence_count}</p>
+                <p className="mt-1 text-sm text-slate-500"><strong className="font-semibold text-slate-800">Résumé:</strong> {report.summary.confidence} · {report.summary.coverage}</p>
               </div>
             ) : null}
 
-            {selectedPhoto ? (
-              <>
-                <h3>Détail de l’image</h3>
-                {selectedPhoto.storage_url && !photoLoadError ? (
-                  <img
-                    src={resolvePhotoUrl(selectedPhoto.storage_url)}
-                    alt={selectedPhoto.filename}
-                    style={{ display: 'block' }}
-                    onError={() => setPhotoLoadError(true)}
-                  />
-                ) : null}
-                {photoLoadError || !selectedPhoto.storage_url ? (
-                  <p className="upload-hint">L’image n’est pas accessible à cette URL. Vérifiez le backend et la configuration VITE_API_URL.</p>
-                ) : null}
-                <p><strong>Nom:</strong> {selectedPhoto.filename}</p>
-                <p><strong>Alt:</strong> {selectedPhoto.altitude_m ?? 'N/A'} m</p>
-                <p><strong>Coordonnées:</strong> {selectedPhoto.latitude?.toFixed(5) ?? 'N/A'}, {selectedPhoto.longitude?.toFixed(5) ?? 'N/A'}</p>
-              </>
-            ) : (
-              <p className="upload-hint">Cliquez sur un marqueur photo sur la carte pour afficher l’image associée et son détail.</p>
-            )}
+            <div className="card">
+              {selectedPhoto ? (
+                <>
+                  <h3 className="text-sm font-semibold text-slate-900">Détail de l'image</h3>
+                  {selectedPhoto.storage_url && !photoLoadError ? (
+                    <img
+                      src={resolvePhotoUrl(selectedPhoto.storage_url)}
+                      alt={selectedPhoto.filename}
+                      onError={() => setPhotoLoadError(true)}
+                      className="mt-3 max-h-72 w-full rounded-lg border border-slate-200 object-cover"
+                    />
+                  ) : null}
+                  {photoLoadError || !selectedPhoto.storage_url ? (
+                    <p className="mt-2 text-xs text-slate-400">
+                      L'image n'est pas accessible à cette URL. Vérifiez le backend et la configuration VITE_API_URL.
+                    </p>
+                  ) : null}
+                  <div className="mt-3 grid gap-1 text-sm text-slate-600">
+                    <p><strong className="font-semibold text-slate-800">Nom:</strong> {selectedPhoto.filename}</p>
+                    <p><strong className="font-semibold text-slate-800">Alt:</strong> {selectedPhoto.altitude_m ?? 'N/A'} m</p>
+                    <p><strong className="font-semibold text-slate-800">Coordonnées:</strong> {selectedPhoto.latitude?.toFixed(5) ?? 'N/A'}, {selectedPhoto.longitude?.toFixed(5) ?? 'N/A'}</p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-slate-400">Cliquez sur un marqueur photo sur la carte pour afficher l'image associée et son détail.</p>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -403,7 +468,7 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
       <MapContainer
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
-        className="mission-map-container"
+        className="h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 shadow-sm max-[900px]:h-[480px]"
         style={{ height: '620px', width: '100%' }}
       >
         <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />

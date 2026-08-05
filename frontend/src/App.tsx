@@ -55,42 +55,54 @@ function App() {
         onClose={() => setToast((current) => ({ ...current, visible: false }))}
       />
 
-      <div className="app-shell">
-        <header className="top-nav">
-          <div className="top-nav__left">
-            <button className="brand" type="button" onClick={() => setPage('missions')}>
-              <img src={jacilogo} alt="JACIGREEN" />
-              <span>JACIGREEN</span>
+      <div className="min-h-screen bg-slate-50">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
+            <button
+              type="button"
+              onClick={() => setPage('missions')}
+              className="flex items-center gap-2.5 rounded-full pr-2 text-brand-700 hover:opacity-90"
+            >
+              <img src={jacilogo} alt="" className="h-9 w-9 rounded-full object-cover shadow-sm" />
+              <span className="text-sm font-bold uppercase tracking-wide">JACIGREEN</span>
             </button>
-          </div>
 
-          <nav className="top-nav__nav" aria-label="Navigation principale">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={page === item.id ? 'nav-link active' : 'nav-link'}
-                onClick={() => setPage(item.id)}
-              >
-                {item.label}
+            <nav aria-label="Navigation principale" className="flex flex-1 items-center gap-1 overflow-x-auto">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setPage(item.id)}
+                  className={
+                    page === item.id
+                      ? 'whitespace-nowrap rounded-full bg-brand-50 px-3.5 py-2 text-sm font-semibold text-brand-700'
+                      : 'whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                  }
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <div className="hidden text-right leading-tight sm:block" aria-label="Compte utilisateur">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  {currentUser.role === 'admin' ? 'Administrateur' : 'Collaborateur'}
+                </p>
+                <p className="text-sm font-semibold text-slate-800">{currentUser.email}</p>
+              </div>
+              <button type="button" onClick={handleLogout} className="btn-danger-ghost">
+                Déconnexion
               </button>
-            ))}
-          </nav>
-
-          <div className="account-menu">
-            <div className="account-chip" aria-label="Compte utilisateur">
-              <span>{currentUser.role === 'admin' ? 'Administrateur' : 'Collaborateur'}</span>
-              <strong>{currentUser.email}</strong>
             </div>
-            <button type="button" className="logout-button" onClick={handleLogout}>
-              Déconnexion
-            </button>
           </div>
         </header>
 
-        {page === 'missions' ? <MissionMap isAdmin={currentUser.role === 'admin'} /> : null}
-        {page === 'collaborators' && currentUser.role === 'admin' ? <CollaboratorsPage /> : null}
-        {page === 'about' ? <AboutPage /> : null}
+        <main>
+          {page === 'missions' ? <MissionMap isAdmin={currentUser.role === 'admin'} /> : null}
+          {page === 'collaborators' && currentUser.role === 'admin' ? <CollaboratorsPage /> : null}
+          {page === 'about' ? <AboutPage /> : null}
+        </main>
       </div>
     </>
   )
