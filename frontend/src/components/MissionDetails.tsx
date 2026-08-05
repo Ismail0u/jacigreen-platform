@@ -18,56 +18,28 @@ export function MissionDetails({ mission }: MissionDetailsProps) {
     return null
   }
 
+  const rows: Array<[string, string]> = [
+    ['Nom', mission.name],
+    ['Statut', mission.status],
+    ['Date', mission.mission_date ? new Date(mission.mission_date).toLocaleString() : 'Non définie'],
+    ['Créée', new Date(mission.created_at).toLocaleString()],
+  ]
+  if (mission.completed_at) rows.push(['Terminée', new Date(mission.completed_at).toLocaleString()])
+  if (mission.description) rows.push(['Description', mission.description])
+  if (mission.notes) rows.push(['Notes', mission.notes])
+  if (mission.zone_id) rows.push(['Zone', mission.zone_id])
+  if (mission.operator_id) rows.push(['Opérateur', mission.operator_id])
+
   return (
-    <section className="mission-details">
-      <h2>Détails de la mission</h2>
-      <dl>
-        <div>
-          <dt>Nom</dt>
-          <dd>{mission.name}</dd>
-        </div>
-        <div>
-          <dt>Statut</dt>
-          <dd>{mission.status}</dd>
-        </div>
-        <div>
-          <dt>Date</dt>
-          <dd>{mission.mission_date ? new Date(mission.mission_date).toLocaleString() : 'Non définie'}</dd>
-        </div>
-        <div>
-          <dt>Créée</dt>
-          <dd>{new Date(mission.created_at).toLocaleString()}</dd>
-        </div>
-        {mission.completed_at ? (
-          <div>
-            <dt>Terminée</dt>
-            <dd>{new Date(mission.completed_at).toLocaleString()}</dd>
+    <section>
+      <h2 className="text-sm font-semibold text-slate-900">Détails de la mission</h2>
+      <dl className="mt-3 grid gap-2.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[100px_1fr] gap-2 border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
+            <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+            <dd className="break-words text-sm text-slate-800">{value}</dd>
           </div>
-        ) : null}
-        {mission.description ? (
-          <div>
-            <dt>Description</dt>
-            <dd>{mission.description}</dd>
-          </div>
-        ) : null}
-        {mission.notes ? (
-          <div>
-            <dt>Notes</dt>
-            <dd>{mission.notes}</dd>
-          </div>
-        ) : null}
-        {mission.zone_id ? (
-          <div>
-            <dt>Zone</dt>
-            <dd>{mission.zone_id}</dd>
-          </div>
-        ) : null}
-        {mission.operator_id ? (
-          <div>
-            <dt>Opérateur</dt>
-            <dd>{mission.operator_id}</dd>
-          </div>
-        ) : null}
+        ))}
       </dl>
     </section>
   )
