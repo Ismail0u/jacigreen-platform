@@ -1,20 +1,80 @@
 @import 'tailwindcss';
 
+/*
+ * Design tokens JACIGREEN — palette liee au metier :
+ * - brand (vert/teal) : vegetation, jacinthe d'eau, biogaz
+ * - water (bleu) : cartographie, GPS, plans d'eau
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --color-brand-50: #f0f7f4;
+  --color-brand-100: #dbece3;
+  --color-brand-200: #b3d9c7;
+  --color-brand-300: #82bfa6;
+  --color-brand-400: #4f9e82;
+  --color-brand-500: #147d63;
+  --color-brand-600: #0d6552;
+  --color-brand-700: #0a5142;
+  --color-brand-800: #093f34;
+  --color-brand-900: #07332b;
+
+  --color-water-50: #eef4ff;
+  --color-water-100: #dae6ff;
+  --color-water-400: #5c8df5;
+  --color-water-500: #3667e0;
+  --color-water-600: #2952c4;
+  --color-water-700: #223f97;
+}
+
 :root {
-  font-family: Inter, system-ui, sans-serif;
-  color: #0f172a;
-  background: #f8fafc;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%);
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   min-height: 100vh;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  font-family: var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
