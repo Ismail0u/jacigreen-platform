@@ -1,10 +1,7 @@
-from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api.v1.routes import router as api_router
@@ -62,9 +59,6 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
     return response
 
-
-storage_path = Path(__file__).resolve().parents[1] / "storage"
-app.mount("/storage", StaticFiles(directory=str(storage_path)), name="storage")
 
 app.include_router(api_router, prefix="/api/v1")
 
