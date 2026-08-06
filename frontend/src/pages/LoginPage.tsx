@@ -1,77 +1,80 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useLocation, useNavigate } from 'react-router-dom'
+
 import { AlertModal } from '../components/AlertModal'
-import { authService } from '../services/authService'
-import type { AuthToken } from '../services/authService'
+import { useAuthStore } from '../store/authStore'
 
-interface LoginProps {
-  onLoginSuccess: (token: AuthToken) => void
-}
+const loginSchema = z.object({
+  email: z.email({ message: 'Adresse email invalide' }),
+  password: z.string().min(1, { message: 'Le mot de passe est requis' }),
+})
 
-export function LoginPage({ onLoginSuccess }: LoginProps) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+const passwordChangeSchema = z
+  .object({
+    newPassword: z.string().min(8, { message: 'Au moins 8 caractères' }),
+    confirmPassword: z.string().min(8, { message: 'Au moins 8 caractères' }),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Les mots de passe ne correspondent pas',
+    path: ['confirmPassword'],
+  })
+
+type LoginFormValues = z.infer<typeof loginSchema>
+type PasswordChangeValues = z.infer<typeof passwordChangeSchema>
+
+export function LoginPage() {
+  const login = useAuthStore((state) => state.login)
+  const changePassword = useAuthStore((state) => state.changePassword)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/missions'
+
+  const [serverError, setServerError] = useState<string | null>(null)
   const [showAlert, setShowAlert] = useState(false)
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false)
-  const [pendingToken, setPendingToken] = useState<AuthToken | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+  const loginForm = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) })
+  const passwordForm = useForm<PasswordChangeValues>({ resolver: zodResolver(passwordChangeSchema) })
 
+  async function onLoginSubmit(values: LoginFormValues) {
+    setServerError(null)
+    setSubmitting(true)
     try {
-      const token = await authService.login(email, password)
-      if (token.requires_password_change) {
-        setPendingToken(token)
+      const { requiresPasswordChange: mustChange } = await login(values.email, values.password)
+      if (mustChange) {
         setRequiresPasswordChange(true)
-        setError(null)
         return
       }
-      onLoginSuccess(token)
+      navigate(redirectTo, { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur lors de l\'authentification'
-      setError(message)
+      const message = err instanceof Error ? err.message : 'Erreur lors de l\u2019authentification'
+      setServerError(message)
       setShowAlert(true)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
-  async function handlePasswordChangeSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
+  async function onPasswordChangeSubmit(values: PasswordChangeValues) {
+    setServerError(null)
+    setSubmitting(true)
     try {
-      if (!pendingToken) {
-        throw new Error('La session de renouvellement du mot de passe est introuvable.')
-      }
-      if (newPassword !== confirmPassword) {
-        throw new Error('La confirmation du nouveau mot de passe ne correspond pas.')
-      }
-
-      await authService.changePassword({
-        old_password: password,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
+      await changePassword({
+        old_password: loginForm.getValues('password'),
+        new_password: values.newPassword,
+        confirm_password: values.confirmPassword,
       })
-
-      setRequiresPasswordChange(false)
-      setNewPassword('')
-      setConfirmPassword('')
-      setPassword('')
-      setPendingToken(null)
-      onLoginSuccess(pendingToken)
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Le changement de mot de passe a échoué.'
-      setError(message)
+      setServerError(message)
       setShowAlert(true)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -80,14 +83,13 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
       <AlertModal
         isOpen={showAlert}
         title={requiresPasswordChange ? 'Changement de mot de passe requis' : 'Connexion impossible'}
-        message={error ?? (requiresPasswordChange ? 'Choisissez un mot de passe fort pour sécuriser votre accès.' : 'Vérifiez votre email et votre mot de passe, puis réessayez.')}
+        message={serverError ?? ''}
         variant="error"
         onClose={() => setShowAlert(false)}
       />
 
       <main className="grid min-h-screen place-items-center bg-brand-900 p-4 sm:p-8">
         <section className="grid w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl md:grid-cols-2">
-          {/* Panneau de marque */}
           <div className="hidden flex-col justify-center gap-5 bg-gradient-to-br from-brand-700 to-brand-900 px-10 py-12 text-white md:flex">
             <div className="h-11 w-11 rounded-lg bg-white/15 ring-1 ring-white/25" aria-hidden="true" />
             <p className="text-xs font-bold uppercase tracking-widest text-brand-200">JACIGREEN Africa</p>
@@ -98,7 +100,6 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
               Centralisez les missions, les photos terrain et les rapports d'analyse pour agir plus vite
               sur les zones prioritaires.
             </p>
-
             <ul className="mt-2 grid gap-3 text-sm font-medium" aria-label="Fonctionnalités clés">
               {['Cartographie du terrain', 'Analyse assistée par IA', 'Suivi d\u2019équipe en temps réel'].map((item) => (
                 <li key={item} className="flex items-center gap-2.5">
@@ -109,7 +110,6 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
             </ul>
           </div>
 
-          {/* Panneau formulaire */}
           <div className="flex flex-col justify-center px-6 py-10 sm:px-10">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Accès sécurisé</p>
             <h2 className="mt-1 text-xl font-bold text-slate-900">
@@ -117,7 +117,7 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
             </h2>
 
             {requiresPasswordChange ? (
-              <form onSubmit={handlePasswordChangeSubmit} className="mt-6 grid gap-4">
+              <form onSubmit={passwordForm.handleSubmit(onPasswordChangeSubmit)} className="mt-6 grid gap-4" noValidate>
                 <p className="text-sm text-slate-500">
                   Pour votre première connexion, choisissez un mot de passe robuste avant d'accéder au tableau de bord.
                 </p>
@@ -128,12 +128,13 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
                     id="new-password"
                     type="password"
                     className="field-input"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="Au moins 8 caractères, 1 majuscule, 1 chiffre, 1 symbole"
-                    required
-                    minLength={8}
+                    placeholder="Au moins 8 caractères"
+                    aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
+                    {...passwordForm.register('newPassword')}
                   />
+                  {passwordForm.formState.errors.newPassword ? (
+                    <span className="text-xs font-medium text-red-600">{passwordForm.formState.errors.newPassword.message}</span>
+                  ) : null}
                 </label>
 
                 <label htmlFor="confirm-password" className="field-label">
@@ -142,37 +143,34 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
                     id="confirm-password"
                     type="password"
                     className="field-input"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
                     placeholder="Répétez le mot de passe"
-                    required
-                    minLength={8}
+                    aria-invalid={Boolean(passwordForm.formState.errors.confirmPassword)}
+                    {...passwordForm.register('confirmPassword')}
                   />
+                  {passwordForm.formState.errors.confirmPassword ? (
+                    <span className="text-xs font-medium text-red-600">{passwordForm.formState.errors.confirmPassword.message}</span>
+                  ) : null}
                 </label>
 
-                {error ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                    {error}
-                  </div>
-                ) : null}
-
-                <button type="submit" className="btn-primary mt-1 h-11" disabled={loading}>
-                  {loading ? 'Mise à jour...' : 'Valider le mot de passe'}
+                <button type="submit" className="btn-primary mt-1 h-11" disabled={submitting}>
+                  {submitting ? 'Mise à jour...' : 'Valider le mot de passe'}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="mt-6 grid gap-4" noValidate>
                 <label htmlFor="email" className="field-label">
                   <span>Email</span>
                   <input
                     id="email"
                     type="email"
                     className="field-input"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
                     placeholder="nom@jacigreen.fr"
-                    required
+                    aria-invalid={Boolean(loginForm.formState.errors.email)}
+                    {...loginForm.register('email')}
                   />
+                  {loginForm.formState.errors.email ? (
+                    <span className="text-xs font-medium text-red-600">{loginForm.formState.errors.email.message}</span>
+                  ) : null}
                 </label>
 
                 <label htmlFor="password" className="field-label">
@@ -181,21 +179,17 @@ export function LoginPage({ onLoginSuccess }: LoginProps) {
                     id="password"
                     type="password"
                     className="field-input"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
                     placeholder="••••••••"
-                    required
+                    aria-invalid={Boolean(loginForm.formState.errors.password)}
+                    {...loginForm.register('password')}
                   />
+                  {loginForm.formState.errors.password ? (
+                    <span className="text-xs font-medium text-red-600">{loginForm.formState.errors.password.message}</span>
+                  ) : null}
                 </label>
 
-                {error ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                    {error}
-                  </div>
-                ) : null}
-
-                <button type="submit" className="btn-primary mt-1 h-11" disabled={loading}>
-                  {loading ? 'Connexion en cours...' : 'Se connecter'}
+                <button type="submit" className="btn-primary mt-1 h-11" disabled={submitting}>
+                  {submitting ? 'Connexion en cours...' : 'Se connecter'}
                 </button>
               </form>
             )}
