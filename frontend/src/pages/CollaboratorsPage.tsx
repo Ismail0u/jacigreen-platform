@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
 
-import { authService } from '../services/authService'
+import { apiClient } from '../lib/apiClient'
 import { getApiErrorMessage } from '../services/apiError'
-
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 interface Collaborator {
   id: string
@@ -36,10 +33,9 @@ export function CollaboratorsPage() {
   async function loadData() {
     setLoading(true)
     try {
-      const headers = authService.getAuthHeader()
       const [usersResponse, missionsResponse] = await Promise.all([
-        axios.get<Collaborator[]>(`${apiUrl}/api/v1/admin/users`, { headers }),
-        axios.get<MissionOption[]>(`${apiUrl}/api/v1/missions/`, { headers }),
+        apiClient.get<Collaborator[]>('/api/v1/admin/users'),
+        apiClient.get<MissionOption[]>('/api/v1/missions/'),
       ])
       setCollaborators(usersResponse.data.filter((user) => user.role === 'collaborator'))
       setMissions(missionsResponse.data)
@@ -50,16 +46,20 @@ export function CollaboratorsPage() {
     }
   }
 
+  // Fetch au montage. La regle react-hooks/set-state-in-effect recommande une
+  // lib de data-fetching (React Query/SWR) plutot qu'un useEffect manuel — c'est
+  // le refactor P1 propose ; en attendant, ce pattern reste correct et volontaire.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadData() }, [])
 
   async function createCollaborator(event: React.FormEvent) {
     event.preventDefault()
     setNotice(null)
     try {
-      const { data } = await axios.post(`${apiUrl}/api/v1/auth/admin/users`, {
+      const { data } = await apiClient.post('/api/v1/auth/admin/users', {
         ...newUser,
         role: 'collaborator',
-      }, { headers: authService.getAuthHeader() })
+      })
       setTemporaryPassword(data.temporary_password)
       setNewUser({ email: '', first_name: '', last_name: '', subscription_tier: 'starter' })
       setNotice(`Le compte de ${data.email} a été créé.`)
@@ -71,7 +71,7 @@ export function CollaboratorsPage() {
 
   async function updateCollaborator(user: Collaborator, changes: Partial<Collaborator>) {
     try {
-      const { data } = await axios.put<Collaborator>(`${apiUrl}/api/v1/auth/admin/users/${user.id}`, changes, { headers: authService.getAuthHeader() })
+      const { data } = await apiClient.put<Collaborator>(`/api/v1/auth/admin/users/${user.id}`, changes)
       setCollaborators((current) => current.map((item) => item.id === user.id ? data : item))
       setNotice(`Les accès de ${data.email} ont été mis à jour.`)
     } catch (error) {
@@ -81,7 +81,7 @@ export function CollaboratorsPage() {
 
   async function resetPassword(user: Collaborator) {
     try {
-      const { data } = await axios.post(`${apiUrl}/api/v1/auth/admin/users/${user.id}/reset-password`, undefined, { headers: authService.getAuthHeader() })
+      const { data } = await apiClient.post(`/api/v1/auth/admin/users/${user.id}/reset-password`)
       setTemporaryPassword(data.temporary_password)
       setNotice(`Le mot de passe de ${user.email} a été réinitialisé.`)
       await loadData()
@@ -94,7 +94,7 @@ export function CollaboratorsPage() {
     event.preventDefault()
     if (!assignment.missionId || !assignment.collaboratorId) return
     try {
-      await axios.put(`${apiUrl}/api/v1/missions/${assignment.missionId}/assignee`, { collaborator_id: assignment.collaboratorId }, { headers: authService.getAuthHeader() })
+      await apiClient.put(`/api/v1/missions/${assignment.missionId}/assignee`, { collaborator_id: assignment.collaboratorId })
       setNotice('La mission a été affectée au collaborateur sélectionné.')
       setAssignment({ missionId: '', collaboratorId: '' })
     } catch (error) {

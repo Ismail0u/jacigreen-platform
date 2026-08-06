@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
-import { authService } from '../services/authService'
+import { apiClient } from '../lib/apiClient'
 import { getApiErrorMessage } from '../services/apiError'
-
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 interface MissionOption {
   id: string
@@ -26,9 +23,7 @@ export function MissionSelector({ value, onChange, refreshKey = 0 }: Props) {
       setLoading(true)
       setError(null)
       try {
-        const response = await axios.get<MissionOption[]>(`${apiUrl}/api/v1/missions/`, {
-          headers: authService.getAuthHeader(),
-        })
+        const response = await apiClient.get<MissionOption[]>('/api/v1/missions/')
         setMissions(response.data.map((mission) => ({ id: mission.id, name: mission.name })))
       } catch (error) {
         setError(getApiErrorMessage(error, 'Impossible de charger les missions. Réessayez dans quelques instants.'))

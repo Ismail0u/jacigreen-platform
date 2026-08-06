@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GeoJSON, MapContainer, TileLayer } from 'react-leaflet'
 import type { FeatureCollection, GeoJsonObject } from 'geojson'
-import axios from 'axios'
-import { authService } from '../services/authService'
+import { apiClient, apiUrl } from '../lib/apiClient'
 import { getApiErrorMessage } from '../services/apiError'
 import L from 'leaflet'
 
@@ -23,7 +22,6 @@ L.Icon.Default.mergeOptions({
 
 const DEFAULT_CENTER: [number, number] = [13.5137, 2.1168]
 const DEFAULT_ZOOM = 18
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 function escapeHtml(value: string): string {
   return value
@@ -88,14 +86,18 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
 
   const photoCount = useMemo(() => geojson?.features.length ?? 0, [geojson])
 
+  // Reset volontaire d'un state UI purement local (pas d'appel reseau ici) :
+  // la regle react-hooks/set-state-in-effect vise les effets qui *fetchent*,
+  // pas ce pattern "reinitialiser un flag d'affichage quand la selection change".
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPhotoLoadError(false)
   }, [selectedPhoto?.id])
 
   async function loadCollaborators() {
     if (!isAdmin || collaborators.length) return
     try {
-      const { data } = await axios.get<Collaborator[]>(`${apiUrl}/api/v1/admin/users`, { headers: authService.getAuthHeader() })
+      const { data } = await apiClient.get<Collaborator[]>('/api/v1/admin/users')
       setCollaborators(data.filter((user) => user.role === 'collaborator' && user.is_active))
     } catch (error) {
       setError(getApiErrorMessage(error, 'Impossible de charger les collaborateurs.'))
@@ -115,13 +117,12 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
     setError(null)
 
     try {
-      const headers = authService.getAuthHeader()
       const [missionResponse, photoResponse, pathResponse, detectionsResponse, reportResponse] = await Promise.all([
-        axios.get<MissionInfo>(`${apiUrl}/api/v1/missions/${missionId}`, { headers }),
-        axios.get<FeatureCollection>(`${apiUrl}/api/v1/missions/${missionId}/geojson`, { headers }),
-        axios.get<FeatureCollection>(`${apiUrl}/api/v1/missions/${missionId}/flightpath`, { headers }),
-        axios.get<FeatureCollection>(`${apiUrl}/api/v1/ai/missions/${missionId}/detections`, { headers }),
-        axios.get<MissionReport>(`${apiUrl}/api/v1/missions/${missionId}/report`, { headers }),
+        apiClient.get<MissionInfo>(`/api/v1/missions/${missionId}`),
+        apiClient.get<FeatureCollection>(`/api/v1/missions/${missionId}/geojson`),
+        apiClient.get<FeatureCollection>(`/api/v1/missions/${missionId}/flightpath`),
+        apiClient.get<FeatureCollection>(`/api/v1/ai/missions/${missionId}/detections`),
+        apiClient.get<MissionReport>(`/api/v1/missions/${missionId}/report`),
       ])
 
       setMissionInfo(missionResponse.data)
@@ -156,11 +157,9 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
     }
     setAssignmentStatus(null)
     try {
-      const { data } = await axios.put<MissionInfo>(
-        `${apiUrl}/api/v1/missions/${missionId}/assignee`,
-        { collaborator_id: assigneeId },
-        { headers: authService.getAuthHeader() },
-      )
+      const { data } = await apiClient.put<MissionInfo>(`/api/v1/missions/${missionId}/assignee`, {
+        collaborator_id: assigneeId,
+      })
       setMissionInfo(data)
       setAssignmentStatus('Collaborateur affecté à cette mission.')
     } catch (error) {
@@ -188,8 +187,7 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
         name,
         mission_date: newMissionDate ? new Date(newMissionDate).toISOString() : undefined,
       }
-      const headers = authService.getAuthHeader()
-      const { data } = await axios.post<MissionInfo>(`${apiUrl}/api/v1/missions/`, payload, { headers })
+      const { data } = await apiClient.post<MissionInfo>('/api/v1/missions/', payload)
       setMissionId(data.id)
       setMissionInfo(data)
       setGeojson({ type: 'FeatureCollection', features: [] })
@@ -223,9 +221,8 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
     Array.from(selectedFiles).forEach((file) => formData.append('files', file))
 
     try {
-      const headers = { ...authService.getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      const response = await axios.post(`${apiUrl}/api/v1/missions/${missionId}/photos`, formData, {
-        headers,
+      const response = await apiClient.post(`/api/v1/missions/${missionId}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
 
       setUploadStatus(`Upload réussi (${response.data.uploaded.length} fichiers)`)
@@ -253,13 +250,12 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
     setError(null)
 
     try {
-      const headers = authService.getAuthHeader()
-      const { data } = await axios.post(`${apiUrl}/api/v1/ai/analyze/${missionId}`, undefined, { headers })
+      const { data } = await apiClient.post(`/api/v1/ai/analyze/${missionId}`)
       const taskId = data.task_id
 
       for (let attempt = 0; attempt < 120; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 3000))
-        const { data: taskData } = await axios.get(`${apiUrl}/api/v1/ai/tasks/${taskId}`, { headers })
+        const { data: taskData } = await apiClient.get(`/api/v1/ai/tasks/${taskId}`)
 
         if (taskData.status === 'SUCCESS') {
           setAnalysisStatus('Analyse IA terminée')
@@ -487,7 +483,7 @@ export function MissionMap({ isAdmin }: MissionMapProps) {
               const latitude = feature.geometry.type === 'Point' ? (feature.geometry.coordinates[1] as number | undefined) : undefined
               const longitude = feature.geometry.type === 'Point' ? (feature.geometry.coordinates[0] as number | undefined) : undefined
 
-              const popupContent = `<div><strong>${title}</strong><br/>Alt: ${altitude}m${absoluteUrl ? `<br/><img src="${absoluteUrl}" alt="${title}" style="max-width:220px; margin-top:8px;" onerror="this.onerror=null;this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<div style=\'margin-top:8px;color:#64748b;font-size:12px;\'>Image non disponible</div>')"/>` : ''}</div>`
+              const popupContent = `<div><strong>${title}</strong><br/>Alt: ${altitude}m${absoluteUrl ? `<br/><img src="${absoluteUrl}" alt="${title}" style="max-width:220px; margin-top:8px;" onerror="this.onerror=null;this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<div style=margin-top:8px;color:#64748b;font-size:12px;>Image non disponible</div>')"/>` : ''}</div>`
               layer.bindPopup(popupContent)
               layer.on('click', () => {
                 setSelectedPhoto({
