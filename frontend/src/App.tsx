@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import './App.css'
@@ -16,6 +17,7 @@ function AppLayout() {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   if (!user) return null // filet de securite ; ProtectedRoute garantit deja cet etat.
 
@@ -26,6 +28,7 @@ function AppLayout() {
   ]
 
   function handleLogout() {
+    setMenuOpen(false)
     logout()
     navigate('/login', { replace: true })
   }
@@ -43,24 +46,62 @@ function AppLayout() {
             <span className="text-sm font-bold uppercase tracking-wide">JACIGREEN</span>
           </button>
 
-          <nav aria-label="Navigation principale" className="flex flex-1 items-center gap-1 overflow-x-auto">
+          {/* Nav desktop : cachee sous md, la place manque des cet endroit sur mobile. */}
+          <nav aria-label="Navigation principale" className="hidden flex-1 items-center gap-1 overflow-x-auto md:flex">
             {navItems.map((item) => (
               <NavButton key={item.to} to={item.to} label={item.label} />
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3 md:ml-0">
             <div className="hidden text-right leading-tight sm:block" aria-label="Compte utilisateur">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {user.role === 'admin' ? 'Administrateur' : 'Collaborateur'}
               </p>
               <p className="text-sm font-semibold text-slate-800">{user.email}</p>
             </div>
-            <button type="button" onClick={handleLogout} className="btn-danger-ghost">
+            <button type="button" onClick={handleLogout} className="btn-danger-ghost hidden md:inline-flex">
               Déconnexion
+            </button>
+
+            {/* Bouton hamburger : uniquement sous md. */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-nav"
+              aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 md:hidden"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-5 w-5">
+                {menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+              </svg>
             </button>
           </div>
         </div>
+
+        {/* Panneau mobile : liens + compte + deconnexion, empiles verticalement. */}
+        {menuOpen ? (
+          <nav id="mobile-nav" aria-label="Navigation principale (mobile)" className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+            <div className="grid gap-1">
+              {navItems.map((item) => (
+                <NavButton key={item.to} to={item.to} label={item.label} fullWidth onNavigate={() => setMenuOpen(false)} />
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+              <div className="leading-tight" aria-label="Compte utilisateur">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  {user.role === 'admin' ? 'Administrateur' : 'Collaborateur'}
+                </p>
+                <p className="text-sm font-semibold text-slate-800">{user.email}</p>
+              </div>
+              <button type="button" onClick={handleLogout} className="btn-danger-ghost">
+                Déconnexion
+              </button>
+            </div>
+          </nav>
+        ) : null}
       </header>
 
       <main>
@@ -70,21 +111,34 @@ function AppLayout() {
   )
 }
 
-function NavButton({ to, label }: { to: string; label: string }) {
+function NavButton({
+  to,
+  label,
+  fullWidth = false,
+  onNavigate,
+}: {
+  to: string
+  label: string
+  fullWidth?: boolean
+  onNavigate?: () => void
+}) {
   const navigate = useNavigate()
   const location = useLocation()
   const isActive = location.pathname === to
 
+  const base = fullWidth
+    ? 'w-full text-left rounded-lg px-3.5 py-2.5 text-sm font-semibold'
+    : 'whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold'
+
   return (
     <button
       type="button"
-      onClick={() => navigate(to)}
+      onClick={() => {
+        navigate(to)
+        onNavigate?.()
+      }}
       aria-current={isActive ? 'page' : undefined}
-      className={
-        isActive
-          ? 'whitespace-nowrap rounded-full bg-brand-50 px-3.5 py-2 text-sm font-semibold text-brand-700'
-          : 'whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-      }
+      className={`${base} ${isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
     >
       {label}
     </button>
