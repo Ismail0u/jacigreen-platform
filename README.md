@@ -26,7 +26,6 @@ Détection automatique via IA YOLOv8, visualisation temps réel sur carte, sync 
 - Mobile Expo : base du projet présente, flux de synchronisation de photo prévu.
 - Base de données locale : Postgres + Redis via Docker fonctionnent comme environnement de dev.
 - CI/CD : pipeline GitHub Actions ajouté pour tests backend, build frontend et scan Bandit.
-- Hébergement gratuit : architecture recommandée définie pour Vercel + Railway + Supabase.
 
 ### Écarts importants par rapport au README
 
@@ -102,7 +101,7 @@ npm start
 
 ###  Authentification
 - [x] Login collaborateur (email + password)
-- [ ] Force password change 1ère connexion
+- [x] Force password change 1ère connexion
 - [x] RBAC: admin vs collaborator (accès aux missions selon affectation)
 - [x] JWT + refresh tokens
 
@@ -114,19 +113,19 @@ npm start
 
 ###  Carte & GPS
 - [x] Affichage zone sur Leaflet (GeoJSON)
-- [ ] Extraction GPS EXIF (piexif)
+- [x] Extraction GPS EXIF (piexif)
 - [ ] Saisie manuelle GPS fallback
 - [ ] Photos directes sur carte (clusters)
 
 ###  Interface
-- [ ] Homepage pro (Tailwind)
-- [ ] Section À propos + logos
-- [ ] Responsive design (mobile-first)
-- [ ] Filtres recherche missions
+- [x] Homepage pro (Tailwind)
+- [x] Section À propos + logos
+- [x] Responsive design (mobile-first)
+- [x] Filtres recherche missions
 
 ###  IA
-- [ ] Fine-tuning YOLOv8n
-- [ ] Celery worker pour inférence
+- [x] Fine-tuning YOLOv8n
+- [x] Celery worker pour inférence
 - [ ] Enregistrement détections DB
 
 ###  Mobile
@@ -135,7 +134,7 @@ npm start
 - [x] Batch photo upload à la synchronisation
 
 ###  Abonnements
-- [ ] Validation manuelle par admin
+- [x] Validation manuelle par admin
 - [ ] Droits d'accès par tier
 
 ##  Architecture
